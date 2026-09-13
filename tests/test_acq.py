@@ -135,6 +135,163 @@ class Base(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+def fake_video(path, payload=b"video"):
+    write(path, payload)
+
+
+def planned_work(cat, family, title, cls, relation="PARALLEL_ADAPTATION"):
+    """A work discovery would add: official, with a PLANNED folder that does not exist."""
+    fam = cat.get_family(family)
+    return cat.add_work(fam, {
+        "work": title, "role": None, "vault_subpath": f"{cls}/{title}", "declared_status": None,
+        "candidate_sources": [], "intake_aliases": [], "availability": "published", "notes": "",
+        "origin": "discovered", "official": True, "confidence": "high", "review_status": "ACCEPTED",
+        "relation": relation, "medium": cls, "material_class": cls, "path_origin": "planned",
+        "titles": {"canonical": title, "en": None, "ja": None, "romaji": None}, "aliases": []})
+
+
+class TestEpisodeNames(unittest.TestCase):
+    def test_season_and_episode_are_read_from_common_names(self):
+        e = vault_scan.episode_numbers
+        self.assertEqual(e("DEMO SHOW - S03E01.mkv"), (3, 1))
+        self.assertEqual(e("[Group] Demo Show - S02E12 [1080p][HEVC x265].mkv"), (2, 12))
+        self.assertEqual(e("Demo Show 2x05.mkv"), (2, 5))
+        self.assertEqual(e("Demo Show - 07.mkv"), (None, 7))
+        self.assertEqual(e("demoshowvs-11.mp4"), (None, 11))
+        self.assertEqual(e("Demo Show - Episode 4 [720p].mkv"), (None, 4))
+        self.assertEqual(e("Demo Show Season 2 - 04.mkv"), (2, 4))
+        self.assertEqual(e("Demo Show (2023) - 05 - A Title, Part 2.mkv"), (None, 5))
+        self.assertEqual(e("Demo Show - OVA 02.mkv"), (0, 2), "specials are season 0")
+
+    def test_a_name_that_states_no_episode_claims_none(self):
+        e = vault_scan.episode_numbers
+        self.assertEqual(e("[Group] Demo Show 0 [BD 1080p][HEVC x265 10bit].mkv"), (None, None))
+        self.assertEqual(e("Demo Movie (2021).mkv"), (None, None))
+        self.assertEqual(e("Demo 1080p.mkv"), (None, None))
+
+
+class TestLocalMaterialIsNeverMissing(Base):
+    """What is physically in the Vault must never be reported as MISSING."""
+
+    def test_episodes_dropped_in_the_class_folder_belong_to_the_planned_work(self):
+        v = self.vault
+        for n in range(1, 4):
+            fake_video(f"{v}/Alpha Saga/anime/DEMO SAGA - S01E0{n}.mkv", b"ep%d" % n)
+        cat = Catalog(self.cat_path)
+        w = planned_work(cat, "Alpha Saga", "Alpha Saga TV", "anime")
+        cat, _idx, _tree, lay, cov, adopted = self.state(cat)
+
+        work = next(x for x in cat.get_family("Alpha Saga")["works"] if x["id"] == w["id"])
+        self.assertEqual(work["vault_subpath"], "anime", "the class root is where the files are")
+        self.assertEqual(work["vault_subpath_planned"], "anime/Alpha Saga TV", "the proposal is kept")
+        self.assertTrue(any(c["action"] == "REPOINT" and c["work"] == "Alpha Saga TV" for c in adopted))
+        c = cov[w["id"]]
+        self.assertNotEqual(c["status"], "MISSING")
+        self.assertEqual(c["local_files"], 3)
+        self.assertEqual(c["media"], "video")
+        self.assertEqual(c["episodes"]["seasons"][0]["season"], 1)
+        self.assertEqual(c["episodes"]["seasons"][0]["episodes_text"], "1-3")
+        self.assertEqual(c["status"], "UNKNOWN", "held, but nobody knows how many episodes exist")
+        self.assertVaultFilesUntouched()
+
+    def test_manga_and_anime_in_one_family_are_both_held(self):
+        v = self.vault
+        fake_video(f"{v}/Alpha Saga/anime/Demo Saga - 01.mkv", b"a")
+        fake_video(f"{v}/Alpha Saga/anime/Demo Saga - 02.mkv", b"b")
+        cat = Catalog(self.cat_path)
+        anime = planned_work(cat, "Alpha Saga", "Alpha Saga TV", "anime")
+        cat, _idx, _tree, lay, cov, _adopted = self.state(cat)
+        manga = next(x for x in cat.get_family("Alpha Saga")["works"] if x["material_class"] == "manga")
+        self.assertNotEqual(cov[manga["id"]]["status"], "MISSING")
+        self.assertNotEqual(cov[anime["id"]]["status"], "MISSING")
+        classes = next(f for f in lay["families"] if f["family_title"] == "Alpha Saga")["classes"]
+        self.assertEqual(classes["anime"]["video_files"], 2)
+        self.assertEqual(classes["anime"]["unattributed_files"], 0)
+        self.assertGreater(classes["manga"]["media_files"], 0)
+
+    def test_a_gap_inside_a_season_is_partial(self):
+        v = self.vault
+        for n in (1, 2, 4):
+            fake_video(f"{v}/Alpha Saga/anime/DEMO SAGA - S02E0{n}.mkv", b"x%d" % n)
+        cat = Catalog(self.cat_path)
+        w = planned_work(cat, "Alpha Saga", "Alpha Saga TV", "anime")
+        cat, _idx, _tree, _lay, cov, _adopted = self.state(cat)
+        c = cov[w["id"]]
+        self.assertEqual(c["status"], "PARTIAL")
+        self.assertIn("EPISODE_GAPS", c["flags"])
+        self.assertIn("season 2: 3 not present", c["reason"])
+
+    def test_two_possible_owners_means_needs_mapping_not_missing(self):
+        v = self.vault
+        fake_video(f"{v}/Alpha Saga/anime/Demo Saga - 01.mkv")
+        cat = Catalog(self.cat_path)
+        tv = planned_work(cat, "Alpha Saga", "Alpha Saga TV", "anime")
+        movie = planned_work(cat, "Alpha Saga", "Alpha Saga The Movie", "anime")
+        cat, _idx, _tree, _lay, cov, adopted = self.state(cat)
+        self.assertFalse([c for c in adopted if c["action"] == "REPOINT" and c["family"] == "Alpha Saga"],
+                         "a guess would be a lie")
+        for w in (tv, movie):
+            self.assertEqual(cov[w["id"]]["status"], "NEEDS_MAPPING")
+            self.assertEqual(cov[w["id"]]["unmapped_local_files"], 1)
+
+    def test_several_works_side_by_side_are_told_apart_by_their_own_metadata(self):
+        """One class folder, two works' volumes mixed together, each archive naming its series."""
+        v = self.vault
+        make_zip(f"{v}/Epsilon/manga/epsilon-main-01.zip", ["0001", "0002"], "Epsilon Main")
+        make_zip(f"{v}/Epsilon/manga/epsilon-side-01.zip", ["0001"], "Epsilon Side Story")
+        make_zip(f"{v}/Epsilon/manga/unlabelled.zip", ["0001"], None, salt="u")
+        # a supplement filed among the manga, naming itself exactly
+        make_zip(f"{v}/Epsilon/manga/epsilon-anthology.zip", ["0001"], "Epsilon Comic Anthology", salt="a")
+        cat = Catalog(self.cat_path)
+        cat.families.append({"order": 9, "family": "Epsilon", "vault_family_folder": "Epsilon",
+                             "medium": "manga", "id": "epsilon", "aliases": [], "external_ids": {}, "works": []})
+        main = planned_work(cat, "Epsilon", "Epsilon Main", "manga", relation="MAIN_WORK")
+        side = planned_work(cat, "Epsilon", "Epsilon Side Story", "manga", relation="OFFICIAL_SPINOFF")
+        # the adaptation shares the main work's exact title, as they usually do
+        planned_work(cat, "Epsilon", "Epsilon Main", "anime")
+        anthology = planned_work(cat, "Epsilon", "Epsilon Comic Anthology", "anthology",
+                                 relation="OFFICIAL_ANTHOLOGY")
+        cat, _idx, _tree, lay, cov, _adopted = self.state(cat)
+        self.assertEqual(cov[anthology["id"]]["local_files"], 1, "its own metadata names it")
+        self.assertEqual(cov[main["id"]]["local_files"], 1)
+        self.assertEqual(cov[side["id"]]["local_files"], 1)
+        self.assertNotIn(cov[main["id"]]["status"], ("MISSING", "NEEDS_MAPPING"))
+        fam = next(f for f in lay["families"] if f["family_title"] == "Epsilon")
+        self.assertEqual(fam["classes"]["manga"]["unattributed_files"], 1, "no metadata, no guess")
+        self.assertVaultFilesUntouched()
+
+    def test_material_with_no_work_of_its_class_is_adopted_for_review(self):
+        v = self.vault
+        fake_video(f"{v}/Beta Days/anime/beta-01.mp4")
+        cat, _idx, _tree, _lay, cov, adopted = self.state()
+        fam = cat.get_family("Beta Days")
+        anime = [w for w in fam["works"] if w["material_class"] == "anime"]
+        self.assertEqual(len(anime), 1)
+        self.assertEqual(anime[0]["review_status"], "REVIEW")
+        self.assertIsNone(anime[0]["official"])
+        self.assertEqual(anime[0]["vault_subpath"], "anime")
+        self.assertNotEqual(cov[anime[0]["id"]]["status"], "MISSING")
+        self.assertVaultFilesUntouched()
+
+    def test_missing_is_reported_only_when_nothing_local_could_be_the_work(self):
+        cat = Catalog(self.cat_path)
+        w = planned_work(cat, "Alpha Saga", "Alpha Saga TV", "anime")
+        cat, _idx, _tree, _lay, cov, _adopted = self.state(cat)
+        self.assertEqual(cov[w["id"]]["status"], "MISSING")
+        self.assertEqual(cov[w["id"]]["unmapped_local_files"], 0)
+
+    def test_the_documents_say_when_their_knowledge_was_renewed(self):
+        _cat, idx, _tree, lay, cov, _adopted = self.state()
+        fresh = report.freshness(idx, [{"generated_at": "2026-01-02T00:00:00+00:00"}], {})
+        self.assertEqual(fresh["library_scanned_at"], idx["generated_at"])
+        self.assertEqual(fresh["catalogue_refreshed_at"], "2026-01-02T00:00:00+00:00")
+        self.assertEqual(fresh["library_files"], idx["stats"]["files"])
+        report.write_state(self.data, lay, cov, fresh)
+        with open(os.path.join(self.data, "vault-coverage.json"), encoding="utf-8") as fh:
+            self.assertEqual(json.load(fh)["freshness"]["library_scanned_at"], idx["generated_at"])
+
+
+# ---------------------------------------------------------------------------
 class TestAdoptNewFamilies(Base):
     """A folder the user dropped in becomes a library entry, not a warning."""
 

@@ -114,13 +114,74 @@ def name_numbers(filename: str) -> tuple[list[str], list[int]]:
     return chapters[:1], vols[:1]
 
 
+#: "S03E01", "s1e12", "S02 E07", "3x05": season and episode in one token.
+SEASON_EPISODE_RE = re.compile(r"(?i)(?:^|[^a-z0-9])s(\d{1,2})[ ._-]?e(\d{1,4})(?![0-9])|(?:^|[^0-9])(\d{1,2})x(\d{2,4})(?![0-9])")
+#: "EP 05", "E05", "Episode 5": an episode without a season.
+EPISODE_WORD_RE = re.compile(r"(?i)(?:^|[^a-z])(?:ep(?:isode)?|e)[ ._-]?(\d{1,4})(?![0-9])")
+#: "Title - 01", "title-11": a number that ENDS the name after a dash. A bare
+#: trailing number after a space ("Title 0") is not read, because titles end
+#: in numbers far more often than episode names do.
+TRAILING_EPISODE_RE = re.compile(r"(?:\s-\s*|-)(\d{1,4})(?:v\d)?$")
+#: "Title - 01 - Episode Title": a number set between two dashes.
+MID_EPISODE_RE = re.compile(r"\s-\s(\d{1,4})(?:v\d)?\s-\s")
+#: "OVA 01", "Special 2", "SP03": specials, filed as season 0 by convention.
+SPECIAL_RE = re.compile(r"(?i)(?:^|[^a-z])(?:ova|oad|ona|special|sp)[ ._-]?(\d{1,3})(?![0-9])")
+#: "Season 2" as a word, for files that state the season apart from the episode.
+SEASON_WORD_RE = re.compile(r"(?i)(?:^|[^a-z])season[ ._-]?(\d{1,2})(?![0-9])")
+_BRACKETS_RE = re.compile(r"\[[^\]]*\]|\([^)]*\)|\{[^}]*\}")
+
+
+def episode_numbers(filename: str) -> tuple[int | None, int | None]:
+    """(season, episode) stated in a video file name, or None for each.
+
+    A local fact about a file, never a claim about what exists: a name that
+    states no episode yields (None, None) and the file is simply "a video".
+    Bracketed tags - release group, resolution, codec - are removed first so
+    "1080" or "x265" is never read as an episode.
+    """
+    stem = _BRACKETS_RE.sub(" ", os.path.splitext(filename)[0]).strip()
+    m = SEASON_EPISODE_RE.search(stem)
+    if m:
+        season, episode = (m.group(1), m.group(2)) if m.group(1) else (m.group(3), m.group(4))
+        return int(season), int(episode)
+    m = SPECIAL_RE.search(stem)
+    if m:
+        return 0, int(m.group(1))
+    season_word = SEASON_WORD_RE.search(stem)
+    season = int(season_word.group(1)) if season_word else None
+    m = MID_EPISODE_RE.search(stem)
+    if m:
+        return season, int(m.group(1))
+    m = EPISODE_WORD_RE.search(stem)
+    if m:
+        return season, int(m.group(1))
+    m = TRAILING_EPISODE_RE.search(stem)
+    if m:
+        return season, int(m.group(1))
+    return season, None
+
+
+def birth_ns(st: os.stat_result) -> int | None:
+    """When the file came into existence on THIS disk, where the OS says so.
+
+    Creation time, not modification time: a download keeps the mtime its
+    archive or server gave it, which can be years old, while its creation
+    time is the moment it arrived. Absent on filesystems that do not record
+    it - then nothing is claimed.
+    """
+    value = getattr(st, "st_birthtime_ns", None)
+    if value is None and os.name == "nt":
+        value = getattr(st, "st_ctime_ns", None)  # creation time on Windows before 3.12
+    return int(value) if value else None
+
+
 def scan_vault(vault_root: str, index_path: str, *, hash_files: bool = True, checkpoint_every: int = 40) -> dict:
     prev_index = read_json(index_path) or {}
     prev = prev_index.get("files", {}) if prev_index.get("vault_root") in (None, vault_root) else {}
     files: dict[str, dict] = {}
     dirs: list[str] = []
     stats = {"files": 0, "bytes": 0, "hashed": 0, "hashed_bytes": 0, "reused": 0, "archives_inspected": 0,
-             "errors": 0}
+             "errors": 0, "unhashed": 0}
     started = time.monotonic()
     since_checkpoint = 0
 
@@ -128,6 +189,7 @@ def scan_vault(vault_root: str, index_path: str, *, hash_files: bool = True, che
         merged = dict(prev) if partial else {}
         merged.update(files)
         idx = {"schema": INDEX_SCHEMA, "vault_root": vault_root, "generated_at": now_iso(), "partial": partial,
+               "hashing": hash_files,
                "stats": dict(stats, seconds=round(time.monotonic() - started, 1)), "dirs": dirs, "files": merged}
         write_json(index_path, idx)
         return idx
@@ -150,13 +212,18 @@ def scan_vault(vault_root: str, index_path: str, *, hash_files: bool = True, che
             stats["bytes"] += st.st_size
             old = prev.get(rel)
             ext = os.path.splitext(fn)[1].lower()
+            created = birth_ns(st)
             if (old and old.get("size") == st.st_size and old.get("mtime_ns") == st.st_mtime_ns
                     and old.get("scan_version") == SCAN_VERSION and (old.get("sha256") or not hash_files)):
+                if created and not old.get("created_ns"):
+                    old["created_ns"] = created  # a stat we already paid for, never a re-read
+                if not old.get("sha256"):
+                    stats["unhashed"] = stats.get("unhashed", 0) + 1
                 files[rel] = old
                 stats["reused"] += 1
                 continue
-            rec = {"size": st.st_size, "mtime_ns": st.st_mtime_ns, "ext": ext, "kind": KIND.get(ext, "other"),
-                   "sha256": None, "scan_version": SCAN_VERSION, "archive": None}
+            rec = {"size": st.st_size, "mtime_ns": st.st_mtime_ns, "created_ns": created, "ext": ext,
+                   "kind": KIND.get(ext, "other"), "sha256": None, "scan_version": SCAN_VERSION, "archive": None}
             if hash_files:
                 try:
                     rec["sha256"] = sha256_file(path)
@@ -167,6 +234,8 @@ def scan_vault(vault_root: str, index_path: str, *, hash_files: bool = True, che
                     stats["errors"] += 1
             elif old and old.get("size") == st.st_size and old.get("mtime_ns") == st.st_mtime_ns:
                 rec["sha256"] = old.get("sha256")
+            if not rec["sha256"]:
+                stats["unhashed"] = stats.get("unhashed", 0) + 1
             if ext in ARCHIVE_EXT:
                 rec["archive"] = inspect_archive(path)
                 stats["archives_inspected"] += 1

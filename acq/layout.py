@@ -102,9 +102,21 @@ def claims(cat: Catalog) -> dict[str, tuple[dict, dict]]:
 
 
 def attribute(cat: Catalog, tree: Tree) -> dict[str, tuple[dict, dict]]:
-    """file rel -> (family, work) by the DEEPEST claimed folder containing it."""
+    """file rel -> (family, work).
+
+    1. By the DEEPEST claimed folder containing the file. The user's folder
+       structure is authoritative and always wins.
+    2. Otherwise, by what the file says about itself: an archive whose
+       ComicInfo series (or series.json title) routes to exactly ONE work of
+       the family whose folder it sits in. A class folder holding several
+       works side by side is common, and without this every one of them would
+       read as missing while all of their volumes are on disk.
+
+    Never across families, never on an ambiguous route, never by file name.
+    """
     cl = claims(cat)
     owner = {}
+    unclaimed = []
     for rel in tree.files:
         parts = rel.split("/")
         for i in range(len(parts) - 1, 0, -1):
@@ -112,6 +124,36 @@ def attribute(cat: Catalog, tree: Tree) -> dict[str, tuple[dict, dict]]:
             if hit:
                 owner[rel] = hit
                 break
+        else:
+            unclaimed.append(rel)
+    if not unclaimed:
+        return owner
+    index = cat.alias_index()
+    by_folder = {f["vault_family_folder"].lower(): f for f in cat.families}
+    for rel in unclaimed:
+        fam = by_folder.get(rel.split("/", 1)[0].lower())
+        arch = tree.files[rel].get("archive") or {}
+        names = {n for n in (arch.get("series"), arch.get("json_title")) if n}
+        if fam is None or not names:
+            continue
+        # An anime adaptation routinely shares its manga's exact title, so the
+        # route is narrowed by what the file physically is: a page archive is
+        # never evidence for a video work, and the reverse. Only if that still
+        # leaves several works does the class folder it sits in decide.
+        is_video = tree.files[rel].get("kind") == "video"
+        candidates = []
+        for fam_name, wid in {r for n in names for r in index.get(norm(n), set())}:
+            w = cat.get_work(fam, wid) if fam_name == fam["family"] else None
+            if w is not None and ((w.get("material_class") or "").lower() in taxonomy.VIDEO_CLASSES) == is_video:
+                candidates.append(w)
+        if len(candidates) > 1:
+            parts = rel.split("/")
+            cls = parts[1].lower() if len(parts) > 2 else ""
+            candidates = [w for w in candidates
+                          if cls in {(w.get("material_class") or "").lower(),
+                                     (w.get("vault_subpath") or "").split("/")[0].lower()}]
+        if len(candidates) == 1:
+            owner[rel] = (fam, candidates[0])
     return owner
 
 
@@ -239,8 +281,10 @@ def adopt_vault_families(cat: Catalog, tree: Tree) -> list[dict]:
 def adopt_vault_folders(cat: Catalog, tree: Tree) -> list[dict]:
     """Register what the user already built so nothing in the Vault is
     'unknown': (1) point an EMPTY curated class-root work at the single child
-    folder that obviously is it; (2) adopt every other unclaimed work folder
-    as a REVIEW work at its CURRENT path (legacy mapping, never moved)."""
+    folder that obviously is it; (2) give media sitting directly in a class
+    folder to the one work of that class that could own it; (3) adopt every
+    other unclaimed work folder as a REVIEW work at its CURRENT path (legacy
+    mapping, never moved)."""
     changes = []
     for fam in cat.families:
         frel = tree.actual(fam["vault_family_folder"])
@@ -300,6 +344,74 @@ def adopt_vault_folders(cat: Catalog, tree: Tree) -> list[dict]:
                     cat.dirty = True
                     changes.append({"action": "REPOINT", "family": fam["family"], "work": root_w["work"],
                                     "from": crel, "to": f"{crel}/{k}"})
+            # (2) Files directly in <Family>/<class>/ that no work claims.
+            #
+            # This is how most downloads land: a season of episodes, a run of
+            # volumes, dropped straight into the class folder. Discovery may
+            # already have planned a destination for that work -
+            # "<class>/<Title>" - back when the folder was empty, and a planned
+            # path is only a proposal. Left alone, the files belong to nobody
+            # and the work they ARE reads as missing.
+            #
+            # The rule is structural, never a title guess:
+            #   * exactly one work of this class holds no files, and no other
+            #     work of the class holds any  -> that work owns the class root;
+            #   * the family has no work of this class at all -> adopt one, as
+            #     REVIEW, so the material is visible and waits for the user;
+            #   * anything else is genuinely ambiguous -> nobody is repointed,
+            #     and coverage reports the works as NEEDS_MAPPING, not MISSING.
+            if root_media and crel.lower() not in cl:
+                kind = cls.lower()
+                same_class = [w for w in fam["works"]
+                              if (w.get("material_class") or "").lower() == kind
+                              and w.get("relation") != taxonomy.FAN_WORK and w.get("official") is not False
+                              and not w.get("contained_in")]
+
+                def holds_files(w: dict) -> bool:
+                    r = wrel(fam, w)
+                    return bool(r and tree.files_under(r))
+
+                empty = [w for w in same_class if not holds_files(w)]
+                if same_class and len(empty) == 1 and len(empty) == len(same_class):
+                    w = empty[0]
+                    previous = w.get("vault_subpath")
+                    key = "vault_subpath_curated" if w.get("origin") == "curated" else "vault_subpath_planned"
+                    if previous:
+                        w.setdefault(key, previous)
+                    w["vault_subpath"] = cls
+                    w["path_origin"] = "legacy-matched"
+                    w.pop("layout_ambiguity", None)
+                    w.setdefault("provenance", []).append({
+                        "at": now_iso(), "source": "vault-layout",
+                        "evidence": f"{len(root_media)} media file(s) sit directly in '{crel}' and this is the "
+                                    f"only work of class '{kind}' in the family; its planned folder "
+                                    f"'{previous}' holds nothing"})
+                    cat.dirty = True
+                    changes.append({"action": "REPOINT", "family": fam["family"], "work": w["work"],
+                                    "from": f"{frel}/{previous}" if previous else None, "to": crel})
+                    cl[crel.lower()] = w
+                elif not same_class:
+                    series = _series_counter(tree, root_media)
+                    title = series.most_common(1)[0][0] if series else fam["family"]
+                    relation, why = taxonomy.classify([title, *series])
+                    w = {"work": title, "role": None, "vault_subpath": cls, "declared_status": None,
+                         "candidate_sources": [], "intake_aliases": [], "availability": "unknown",
+                         "notes": "Adopted from files in an existing class folder; relation and official status "
+                                  "need review.",
+                         "origin": "vault-adopted", "official": None, "confidence": "low", "review_status": "REVIEW",
+                         "relation": relation,
+                         "medium": kind if kind in taxonomy.STORY_CLASSES else fam.get("medium"),
+                         "material_class": taxonomy.material_class(relation, kind)
+                                           if relation != taxonomy.UNKNOWN else kind,
+                         "titles": {"canonical": title, "en": None, "ja": None, "romaji": None},
+                         "aliases": [s for s in series if norm(s) != norm(title)], "path_origin": "adopted",
+                         "provenance": [{"at": now_iso(), "source": "vault-layout",
+                                         "evidence": f"{len(root_media)} media file(s) directly in {crel}, and the "
+                                                     f"family had no work of class '{kind}'; classified by {why}"}]}
+                    cat.add_work(fam, w)
+                    changes.append({"action": "ADOPT", "family": fam["family"], "work": title, "path": crel,
+                                    "relation": relation, "why": why})
+                    cl[crel.lower()] = w
             for k in kids:
                 krel = f"{crel}/{k}"
                 series = _series_counter(tree, tree.files_under(krel))
@@ -450,12 +562,26 @@ def build_layout(cat: Catalog, tree: Tree, *, unofficial_hosts=(), scaffold_log:
         expected_classes = sorted({w["material_class"] for w in fam["works"]
                                    if w.get("official") is not False and w.get("relation") != taxonomy.FAN_WORK})
         class_info = {}
-        for c in sorted(set(present.values()) | set(expected_classes), key=str.lower):
-            crel = f"{frel_expected}/{present.get(c.lower(), c)}"
-            exists = c.lower() in present
-            n_files = len(tree.files_under(crel)) if exists else 0
-            class_info[c] = {"exists": exists, "files": n_files, "work_folders": len(tree.kids(crel)) if exists else 0,
-                             "known_class": c.lower() in taxonomy.MATERIAL_CLASSES}
+        # Keyed by the vocabulary term: a folder named "Manga" and works of
+        # class "manga" are one kind of material, not two rows.
+        for c in sorted({x.lower() for x in present} | {x.lower() for x in expected_classes}):
+            crel = f"{frel_expected}/{present.get(c, c)}"
+            exists = c in present
+            class_files = tree.files_under(crel) if exists else []
+            media = [x for x in class_files if tree.files[x].get("kind") in vault_scan.MEDIA_KINDS
+                     and not vault_scan.is_foreign_payload(tree.files[x])]
+            created = [tree.files[x].get("created_ns") or 0 for x in media]
+            n_files = len(class_files)
+            class_info[c] = {"exists": exists, "folder": present.get(c), "files": n_files,
+                             "work_folders": len(tree.kids(crel)) if exists else 0,
+                             "known_class": c in taxonomy.MATERIAL_CLASSES,
+                             "media_files": len(media),
+                             "video_files": sum(tree.files[x].get("kind") == "video" for x in media),
+                             "bytes": sum(tree.files[x].get("size", 0) for x in media),
+                             "attributed_files": sum(x in owner for x in media),
+                             "unattributed_files": sum(x not in owner for x in media),
+                             "works": sum((w.get("material_class") or "").lower() == c for w in fam["works"]),
+                             "last_added_ns": max(created, default=0) or None}
             if exists and c.lower() not in taxonomy.MATERIAL_CLASSES:
                 near = sorted(((similarity(c, k), k) for k in taxonomy.MATERIAL_CLASSES), reverse=True)[0]
                 findings.append({"type": "AMBIGUOUS" if near[0] >= EQUIV_WEAK else "UNEXPECTED", "path": crel,
@@ -468,9 +594,15 @@ def build_layout(cat: Catalog, tree: Tree, *, unofficial_hosts=(), scaffold_log:
             if exists:
                 root_claimed = crel.lower() in cl
                 loose = tree.files_in.get(tree.actual(crel) or crel, [])
-                if loose and not root_claimed:
+                by_metadata = [x for x in loose if x in owner]
+                unowned = [x for x in loose if x not in owner]
+                if loose and not root_claimed and by_metadata:
+                    findings.append({"type": "INFO", "path": crel, "detail":
+                                     f"{len(by_metadata)} file(s) directly in this class folder were matched to "
+                                     f"their works by their own series metadata", "review_required": False})
+                if unowned and not root_claimed:
                     findings.append({"type": "REVIEW_REQUIRED", "path": crel, "detail":
-                                     f"{len(loose)} file(s) directly in a class folder that no work claims",
+                                     f"{len(unowned)} file(s) directly in a class folder that no work claims",
                                      "review_required": True})
                 if root_claimed and tree.kids(crel):
                     findings.append({"type": "INFO", "path": crel, "detail":
@@ -591,6 +723,8 @@ def build_layout(cat: Catalog, tree: Tree, *, unofficial_hosts=(), scaffold_log:
             "expected_classes": expected_classes, "works": rows, "findings": findings,
             "folders_created": created_by_family.get(fam["family"], []),
             "files": len(fam_files), "bytes": sum(tree.files[x].get("size", 0) for x in fam_files),
+            "last_added_ns": max((tree.files[x].get("created_ns") or 0 for x in fam_files), default=0) or None,
+            "origin": fam.get("origin") or "curated", "review_status": fam.get("review_status") or "ACCEPTED",
         })
 
     # cross-family duplicates

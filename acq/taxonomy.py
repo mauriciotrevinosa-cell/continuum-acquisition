@@ -57,6 +57,8 @@ PRIORITY = {
 # medium; supplemental and fan material get their own class folder, so the
 # filesystem separates KIND of material while canon stays in metadata.
 STORY_CLASSES = ("manga", "manhwa", "manhua", "light-novel", "web-novel", "anime")
+#: Classes whose material is moving image, not pages.
+VIDEO_CLASSES = frozenset({"anime"})
 SUPPLEMENTAL_FOLDER = {
     GUIDEBOOK: "guidebook", FANBOOK_OFFICIAL: "fanbook", ARTBOOK: "art-book",
     VISUAL_REFERENCE: "visual-reference", COLORED_EDITION: "colored-edition",

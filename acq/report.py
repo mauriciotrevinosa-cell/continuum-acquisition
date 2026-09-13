@@ -18,7 +18,8 @@ from collections import Counter, defaultdict
 from . import taxonomy as tx
 from .util import now_iso, read_json, write_json, write_text
 
-ICON = {"COMPLETE": "✅", "PARTIAL": "⚠️", "MISSING": "❌", "UNKNOWN": "❓", "BLOCKED": "❓"}
+ICON = {"COMPLETE": "✅", "PARTIAL": "⚠️", "MISSING": "❌", "NEEDS_MAPPING": "🧭", "UNKNOWN": "❓",
+        "BLOCKED": "❓"}
 CLASS_ORDER = {c: i for i, c in enumerate(tx.MATERIAL_CLASSES)}
 LEGACY_V1_KEYS = {"order", "family", "work", "role", "medium", "acquisition_status", "vault_destination",
                   "destination_exists", "local_files", "coverage", "candidate_sources", "language",
@@ -63,10 +64,38 @@ def discovered_all(data_dir: str) -> list[dict]:
     return out
 
 
-def write_state(data_dir: str, layout: dict, cov: dict) -> None:
-    write_json(os.path.join(data_dir, "vault-layout.json"), fill_layout(layout, cov))
-    write_json(os.path.join(data_dir, "vault-coverage.json"),
-               {"schema": "continuum.personal.vault-coverage/2", "generated_at": now_iso(), "works": cov})
+def freshness(index: dict | None, discovered: list[dict], catalog_data: dict | None) -> dict:
+    """When each kind of knowledge was last renewed, stated rather than implied.
+
+    Three clocks, because they go stale independently: the library scan (what
+    is on disk), the catalogue refresh (what officially exists), and whether
+    the scan hashed everything (duplicate detection trails a fast scan).
+    """
+    index = index or {}
+    stamps = [d.get("generated_at") for d in discovered if d.get("generated_at")]
+    stamps += [(catalog_data or {}).get("discovered_at")] if (catalog_data or {}).get("discovered_at") else []
+    stats = index.get("stats") or {}
+    return {
+        "library_scanned_at": index.get("generated_at"),
+        "library_scan_partial": bool(index.get("partial")),
+        "library_files": stats.get("files"),
+        "library_bytes": stats.get("bytes"),
+        "unhashed_files": stats.get("unhashed"),
+        "hashing": index.get("hashing"),
+        "vault_root": index.get("vault_root"),
+        "catalogue_refreshed_at": max(stamps) if stamps else None,
+    }
+
+
+def write_state(data_dir: str, layout: dict, cov: dict, fresh: dict | None = None) -> None:
+    layout = fill_layout(layout, cov)
+    if fresh is not None:
+        layout["freshness"] = fresh
+    write_json(os.path.join(data_dir, "vault-layout.json"), layout)
+    doc = {"schema": "continuum.personal.vault-coverage/3", "generated_at": now_iso(), "works": cov}
+    if fresh is not None:
+        doc["freshness"] = fresh
+    write_json(os.path.join(data_dir, "vault-coverage.json"), doc)
 
 
 # ---------------------------------------------------------------------------
@@ -212,6 +241,11 @@ def collect_review(cat, layout: dict, discovered: list[dict], scaffold_actions: 
                                     f"confidence {w.get('confidence')} · official {w.get('official')}. {ev}",
                           "action": "confirm (set review_status ACCEPTED, confidence high) or correct relation / "
                                     "official in works-catalog.json"})
+        if w.get("_coverage_status") == "NEEDS_MAPPING":
+            items.append({"kind": "NEEDS_MAPPING", "family": fam["family"], "item": w["work"],
+                          "detail": w.get("_coverage_reason") or "local material of this kind is unmapped",
+                          "action": "point the work's vault_subpath at the folder that holds it, or move the "
+                                    "files into its folder yourself"})
         if w.get("layout_ambiguity"):
             a = w["layout_ambiguity"]
             items.append({"kind": "LAYOUT_AMBIGUOUS", "family": fam["family"], "item": w["work"],

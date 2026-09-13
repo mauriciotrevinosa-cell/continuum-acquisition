@@ -138,15 +138,26 @@ class Ctx:
 
     def write_all(self, st: dict, *, scaffold_actions=None, scaffold_applied=False, items=None) -> dict:
         items = acquire.plan(self.cat, st["coverage"], self.reg) if items is None else items
-        report.write_state(self.data_dir, st["layout"], st["coverage"])
-        qsum = report.write_queue(self.data_dir, self.cat, st["coverage"], st["layout"], items)
         disc = report.discovered_all(self.data_dir)
+        fresh = report.freshness(st.get("index"), disc, self.cat.data)
+        report.write_state(self.data_dir, st["layout"], st["coverage"], fresh)
+        qsum = report.write_queue(self.data_dir, self.cat, st["coverage"], st["layout"], items)
         csum = report.write_coverage_report(self.data_dir, self.cat, st["coverage"], st["layout"], disc)
         acquire.write_manual(self.data_dir, items)
         if scaffold_actions is None:
             scaffold_actions = scaffold.plan(self.cat, st["layout"])
-        review = report.collect_review(self.cat, st["layout"], disc, scaffold_actions,
-                                       util.read_json(os.path.join(self.data_dir, "ingest-last.json")))
+        # collect_review reads coverage from the works; the markers are removed
+        # again before anything is saved, so they never reach the catalog.
+        for _fam, w in self.cat.iter_works():
+            c = st["coverage"].get(w["id"]) or {}
+            w["_coverage_status"], w["_coverage_reason"] = c.get("status"), c.get("reason")
+        try:
+            review = report.collect_review(self.cat, st["layout"], disc, scaffold_actions,
+                                           util.read_json(os.path.join(self.data_dir, "ingest-last.json")))
+        finally:
+            for _fam, w in self.cat.iter_works():
+                w.pop("_coverage_status", None)
+                w.pop("_coverage_reason", None)
         report.write_review(self.data_dir, review)
         report.write_vault_audit(self.data_dir, st["layout"], scaffold_actions, scaffold_applied)
         wpath = os.path.join(self.data_dir, "update-watch.json")
@@ -193,6 +204,8 @@ def cmd_discover(ctx: Ctx) -> int:
     st = ctx.state(rescan=not os.path.exists(ctx.index_path))
     res = discover.run(ctx.cat, ctx.providers(), ctx.data_dir, families=ctx.args.family, refresh=ctx.args.refresh,
                        max_nodes=ctx.args.max_nodes, max_depth=ctx.args.max_depth)
+    ctx.cat.data["discovered_at"] = util.now_iso()
+    ctx.cat.dirty = True
     if ctx.cat.dirty:
         ctx.cat.save(reason="discover")
     st = ctx.state(rescan=False)
