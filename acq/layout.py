@@ -581,6 +581,7 @@ def build_layout(cat: Catalog, tree: Tree, *, unofficial_hosts=(), scaffold_log:
                              "bytes": sum(tree.files[x].get("size", 0) for x in media),
                              "attributed_files": sum(x in owner for x in media),
                              "unattributed_files": sum(x not in owner for x in media),
+                             "unattributed_rels": sorted(x for x in media if x not in owner)[:500],
                              "works": sum((w.get("material_class") or "").lower() == c for w in fam["works"]),
                              "last_added_ns": max(created, default=0) or None}
             if exists and c.lower() not in taxonomy.MATERIAL_CLASSES:

@@ -25,6 +25,7 @@ from collections import Counter, defaultdict
 import datetime as _dt
 
 from . import vault_scan
+from .taxonomy import VIDEO_CLASSES
 from .layout import Tree, attribute
 
 STATUSES = ("COMPLETE", "PARTIAL", "MISSING", "NEEDS_MAPPING", "UNKNOWN", "BLOCKED")
@@ -90,13 +91,32 @@ def episodes(tree: Tree, rels: list[str]) -> dict:
             other += 1
         else:
             seasons[season].add(episode)
+    # Archives are containers, not episodes. What they hold is counted from
+    # their own directory; an archive not yet inventoried says so instead of
+    # being counted as one episode.
+    archives = [r for r in rels if tree.files[r].get("kind") == "archive"]
+    bundles = [r for r in archives if (tree.files[r].get("archive") or {}).get("videos")]
+    uninventoried = [r for r in archives
+                     if "videos" not in (tree.files[r].get("archive") or {})
+                     and not (tree.files[r].get("archive") or {}).get("images")]
+    contained = 0
+    for r in bundles:
+        for entry in (tree.files[r].get("archive") or {}).get("video_entries") or []:
+            contained += 1
+            season, episode = vault_scan.entry_episode_numbers(str(entry.get("name") or ""))
+            if episode is None:
+                other += 1
+            else:
+                seasons[season].add(episode)
     rows = []
     for season in sorted(seasons, key=lambda s: (s is None, s or 0)):
         eps = sorted(seasons[season])
         gaps = [n for n in range(eps[0], eps[-1] + 1) if n not in seasons[season]] if eps else []
         rows.append({"season": season, "episodes": len(eps), "first": eps[0], "last": eps[-1],
                      "episodes_text": ranges(eps), "gaps": gaps, "gaps_text": ranges(gaps)})
-    return {"videos": len(videos), "other_videos": other, "seasons": rows}
+    return {"videos": len(videos), "other_videos": other, "seasons": rows,
+            "archives_with_video": len(bundles), "contained_videos": contained,
+            "archives_not_inventoried": len(uninventoried)}
 
 
 def compute(cat, tree: Tree) -> dict[str, dict]:
@@ -113,7 +133,9 @@ def compute(cat, tree: Tree) -> dict[str, dict]:
         own_classes = {c for c in ((w.get("material_class") or "").lower(), sub) if c}
         unmapped_here = sorted({r for c in own_classes for r in unmapped.get((fam["id"], c), [])})
         ep = episodes(tree, rels)
-        is_video = bool(rels) and ep["videos"] * 2 >= len(rels)
+        video_like = ep["videos"] + ep["archives_with_video"] + (
+            ep["archives_not_inventoried"] if (w.get("material_class") or "").lower() in VIDEO_CLASSES else 0)
+        is_video = bool(rels) and video_like * 2 >= len(rels)
         season_gaps = [s for s in ep["seasons"] if s["gaps"]]
         chapters: set[str] = set()
         vols: set[int] = set()
@@ -163,7 +185,15 @@ def compute(cat, tree: Tree) -> dict[str, dict]:
         elif is_video and w.get("declared_status") != "COMPLETE":
             held = sum(s["episodes"] for s in ep["seasons"])
             status = "UNKNOWN"
-            what = f"{held} episode file(s)" if held else f"{ep['videos']} video file(s)"
+            if ep["archives_not_inventoried"] and not held:
+                what = (f"{ep['archives_not_inventoried']} archive file(s); episode inventory not "
+                        f"indexed yet")
+            elif ep["contained_videos"] and not ep["videos"]:
+                what = f"{ep['contained_videos']} episode file(s) inside {ep['archives_with_video']} archive(s)"
+            elif held:
+                what = f"{held} episode file(s)"
+            else:
+                what = f"{ep['videos']} video file(s)"
             reason = f"{what} present; no episode count is known to compare against"
         elif gaps and source_count and len(chapters) >= source_count:
             flags.append("NUMBERING_GAPS")
@@ -205,7 +235,10 @@ def compute(cat, tree: Tree) -> dict[str, dict]:
             "missing_chapters_text": ranges(missing_tail), "chapters_in_multiple_archives": dup[:200],
             "languages": sorted({(tree.files[r].get("archive") or {}).get("language") for r in rels} - {None}),
             "media": "video" if is_video else ("pages" if rels else None),
-            "episodes": ep if ep["videos"] else None,
+            "episodes": ep if (ep["videos"] or ep["archives_with_video"] or ep["archives_not_inventoried"] and is_video) else None,
+            # Which files make up the work, so a reader can open them. Paths
+            # relative to the Vault; the application resolves them itself.
+            "media_files": sorted(rels),
             "unmapped_local_files": len(unmapped_here),
             "last_added_at": iso_ns(max((tree.files[r].get("created_ns") or 0 for r in rels), default=0)),
         }

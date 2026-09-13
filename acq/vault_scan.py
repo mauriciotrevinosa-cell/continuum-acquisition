@@ -18,7 +18,12 @@ from urllib.parse import urlparse
 from .util import LOG, now_iso, read_json, sha256_file, write_json
 
 INDEX_SCHEMA = "continuum.personal.vault-index/1"
-SCAN_VERSION = 2
+#: 3: archives record the media they contain (videos with names), so bundled
+#: episodes are counted from the archive, never from the number of archives.
+SCAN_VERSION = 3
+#: Contained video entries recorded per archive. Names only - enough to read
+#: seasons and episodes - never the bytes.
+MAX_CONTAINED_ENTRIES = 400
 ARCHIVE_EXT = {".zip", ".cbz"}
 IMAGE_EXT = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".avif", ".bmp", ".jxl"}
 EXECUTABLE_EXT = {".exe", ".dll", ".msi", ".bat", ".cmd", ".ps1", ".sh", ".asar", ".node", ".pak"}
@@ -47,7 +52,8 @@ def chapter_key(major: str, minor: str | None) -> str:
 def inspect_archive(path: str) -> dict:
     """Directory-level look inside a ZIP/CBZ: chapter folders, image count and
     the first ComicInfo.xml / series.json (small, read into memory only)."""
-    info = {"entries": 0, "images": 0, "executables": 0, "chapters": [], "volumes": [], "series": None,
+    info = {"entries": 0, "images": 0, "videos": 0, "video_entries": [], "executables": 0,
+            "chapters": [], "volumes": [], "series": None,
             "language": None, "web_hosts": [], "source_url": None, "writer": None, "penciller": None,
             "remote_count": None, "json_title": None, "json_status": None, "error": None}
     try:
@@ -64,6 +70,11 @@ def inspect_archive(path: str) -> dict:
                         info["images"] += 1
                     elif ext in EXECUTABLE_EXT:
                         info["executables"] += 1
+                    elif KIND.get(ext) == "video":
+                        info["videos"] += 1
+                        if len(info["video_entries"]) < MAX_CONTAINED_ENTRIES:
+                            info["video_entries"].append(
+                                {"name": "/".join(parts), "size": z.getinfo(n).file_size})
                 for d in dirs:
                     m = CHAPTER_DIR_RE.match(d)
                     if m:
@@ -116,6 +127,8 @@ def name_numbers(filename: str) -> tuple[list[str], list[int]]:
 
 #: "S03E01", "s1e12", "S02 E07", "3x05": season and episode in one token.
 SEASON_EPISODE_RE = re.compile(r"(?i)(?:^|[^a-z0-9])s(\d{1,2})[ ._-]?e(\d{1,4})(?![0-9])|(?:^|[^0-9])(\d{1,2})x(\d{2,4})(?![0-9])")
+#: "Title S2 - 08": a season token, then the episode after a dash.
+SEASON_DASH_EPISODE_RE = re.compile(r"(?i)(?:^|[^a-z0-9])s(\d{1,2})\s*-\s*(\d{1,4})(?![0-9])")
 #: "EP 05", "E05", "Episode 5": an episode without a season.
 EPISODE_WORD_RE = re.compile(r"(?i)(?:^|[^a-z])(?:ep(?:isode)?|e)[ ._-]?(\d{1,4})(?![0-9])")
 #: "Title - 01", "title-11": a number that ENDS the name after a dash. A bare
@@ -131,6 +144,20 @@ SEASON_WORD_RE = re.compile(r"(?i)(?:^|[^a-z])season[ ._-]?(\d{1,2})(?![0-9])")
 _BRACKETS_RE = re.compile(r"\[[^\]]*\]|\([^)]*\)|\{[^}]*\}")
 
 
+def entry_episode_numbers(entry: str) -> tuple[int | None, int | None]:
+    """(season, episode) for a video inside an archive: the name decides, and a
+    parent folder such as "Season 2/" supplies the season the name leaves out."""
+    parts = [p for p in entry.replace("\\", "/").split("/") if p]
+    season, episode = episode_numbers(parts[-1] if parts else entry)
+    if season is None:
+        for folder in reversed(parts[:-1]):
+            m = SEASON_WORD_RE.search(folder)
+            if m:
+                season = int(m.group(1))
+                break
+    return season, episode
+
+
 def episode_numbers(filename: str) -> tuple[int | None, int | None]:
     """(season, episode) stated in a video file name, or None for each.
 
@@ -144,6 +171,9 @@ def episode_numbers(filename: str) -> tuple[int | None, int | None]:
     if m:
         season, episode = (m.group(1), m.group(2)) if m.group(1) else (m.group(3), m.group(4))
         return int(season), int(episode)
+    m = SEASON_DASH_EPISODE_RE.search(stem)
+    if m:
+        return int(m.group(1)), int(m.group(2))
     m = SPECIAL_RE.search(stem)
     if m:
         return 0, int(m.group(1))

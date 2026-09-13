@@ -275,6 +275,38 @@ class TestLocalMaterialIsNeverMissing(Base):
         self.assertFalse([m for m in lay["proposed_moves"] if "arufa-v1" in m["source"]],
                          "a page archive is never evidence for a video work")
 
+    def test_archives_are_containers_not_episodes(self):
+        """Two archives holding three episodes are three episodes, not two."""
+        v = self.vault
+        make_zip(f"{v}/Alpha Saga/anime/season-2-part-1.zip",
+                 extra={"Season 2/Demo Saga S2 - 01.mkv": b"a", "Season 2/Demo Saga S2 - 02.mkv": b"b"})
+        make_zip(f"{v}/Alpha Saga/anime/season-2-part-2.zip",
+                 extra={"Season 2/Demo Saga S2 - 03.mkv": b"c"})
+        cat = Catalog(self.cat_path)
+        w = planned_work(cat, "Alpha Saga", "Alpha Saga TV", "anime")
+        cat, idx, _tree, lay, cov, _adopted = self.state(cat)
+        c = cov[w["id"]]
+        self.assertEqual(c["local_files"], 2)
+        self.assertEqual(c["media"], "video")
+        self.assertEqual(c["episodes"]["archives_with_video"], 2)
+        self.assertEqual(c["episodes"]["contained_videos"], 3)
+        self.assertEqual(c["episodes"]["videos"], 0, "no loose video file exists")
+        self.assertEqual(c["episodes"]["seasons"][0]["season"], 2)
+        self.assertEqual(c["episodes"]["seasons"][0]["episodes_text"], "1-3")
+        self.assertIn("3 episode file(s) inside 2 archive(s)", c["reason"])
+        self.assertEqual(len(c["media_files"]), 2)
+        arch = idx["files"]["Alpha Saga/anime/season-2-part-1.zip"]["archive"]
+        self.assertEqual(arch["videos"], 2)
+        self.assertEqual(arch["video_entries"][0]["name"], "Season 2/Demo Saga S2 - 01.mkv")
+        self.assertVaultFilesUntouched()
+
+    def test_every_work_lists_the_files_that_make_it_up(self):
+        cat, _idx, _tree, lay, cov, _adopted = self.state()
+        fam = cat.get_family("Alpha Saga")
+        main = next(w for w in fam["works"] if w["material_class"] == "manga")
+        self.assertTrue(cov[main["id"]]["media_files"])
+        self.assertTrue(all(r.startswith("Alpha Saga/manga/") for r in cov[main["id"]]["media_files"]))
+
     def test_material_with_no_work_of_its_class_is_adopted_for_review(self):
         v = self.vault
         fake_video(f"{v}/Beta Days/anime/beta-01.mp4")
