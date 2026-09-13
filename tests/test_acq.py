@@ -253,12 +253,27 @@ class TestLocalMaterialIsNeverMissing(Base):
                                  relation="OFFICIAL_ANTHOLOGY")
         cat, _idx, _tree, lay, cov, _adopted = self.state(cat)
         self.assertEqual(cov[anthology["id"]]["local_files"], 1, "its own metadata names it")
+        self.assertFalse([m for m in lay["proposed_moves"] if "/anime/" in m["target"].replace("\\", "/")],
+                         "a page archive is never proposed into the anime folder")
         self.assertEqual(cov[main["id"]]["local_files"], 1)
         self.assertEqual(cov[side["id"]]["local_files"], 1)
         self.assertNotIn(cov[main["id"]]["status"], ("MISSING", "NEEDS_MAPPING"))
         fam = next(f for f in lay["families"] if f["family_title"] == "Epsilon")
         self.assertEqual(fam["classes"]["manga"]["unattributed_files"], 1, "no metadata, no guess")
         self.assertVaultFilesUntouched()
+
+    def test_manga_volumes_are_never_proposed_into_the_anime_folder(self):
+        """The series name in a volume matches only the adaptation's alias."""
+        v = self.vault
+        make_zip(f"{v}/Alpha Saga/manga/arufa-v1.zip", ["0010"], "Arufa Saga Romaji", salt="r")
+        cat = Catalog(self.cat_path)
+        tv = planned_work(cat, "Alpha Saga", "Alpha Saga TV", "anime")
+        tv["aliases"] = ["Arufa Saga Romaji"]
+        os.makedirs(f"{v}/Alpha Saga/anime/Alpha Saga TV", exist_ok=True)
+        tv["vault_subpath"] = "anime/Alpha Saga TV"
+        cat, _idx, _tree, lay, _cov, _adopted = self.state(cat)
+        self.assertFalse([m for m in lay["proposed_moves"] if "arufa-v1" in m["source"]],
+                         "a page archive is never evidence for a video work")
 
     def test_material_with_no_work_of_its_class_is_adopted_for_review(self):
         v = self.vault

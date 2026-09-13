@@ -690,8 +690,17 @@ def build_layout(cat: Catalog, tree: Tree, *, unofficial_hosts=(), scaffold_log:
             s = arch.get("series")
             if not s or rel not in owner:
                 continue
-            routes = index.get(norm(s), set())
             here = owner[rel]
+            # A page archive is never evidence for a video work (or the reverse):
+            # an adaptation sharing the manga's title must not attract its volumes.
+            is_video = rec.get("kind") == "video"
+            routes = set()
+            for fam_name, wid in index.get(norm(s), set()):
+                f_route = cat.get_family(fam_name)
+                w_route = cat.get_work(f_route, wid) if f_route else None
+                if w_route is not None and (
+                        (w_route.get("material_class") or "").lower() in taxonomy.VIDEO_CLASSES) == is_video:
+                    routes.add((fam_name, wid))
             if len(routes) == 1:
                 fam2, wid2 = next(iter(routes))
                 if wid2 != here[1]["id"]:
