@@ -1,0 +1,1275 @@
+{
+  "schema": "continuum.acquisition.source-seed/1",
+  "description": "Optional starter list of PUBLIC, LEGAL distribution channels. This is DATA, not code: delete it, edit it, or start from an empty registry with `sources add`. It is copied into the personal registry only when that registry does not exist yet.",
+  "publisher_routing": {
+    "english": {
+      "viz": "viz",
+      "shonen jump": "viz",
+      "kodansha": "kodansha_us",
+      "vertical": "kodansha_us",
+      "yen press": "yen_press",
+      "yen on": "yen_press",
+      "seven seas": "seven_seas",
+      "ghost ship": "seven_seas",
+      "airship": "seven_seas",
+      "square enix": "square_enix",
+      "j-novel club": "jnovel_club",
+      "j-novel": "jnovel_club",
+      "tapas": "tapas",
+      "webtoon": "webtoon",
+      "k manga": "k_manga",
+      "manga plus": "manga_plus",
+      "manga up": "manga_up"
+    },
+    "original": {
+      "shueisha": [
+        "shonen_jump_plus",
+        "tonari_no_young_jump"
+      ],
+      "kodansha": [
+        "comic_days",
+        "magazine_pocket"
+      ],
+      "shogakukan": [
+        "sunday_webry",
+        "manga_one"
+      ],
+      "square enix": [
+        "manga_up_jp"
+      ],
+      "kadokawa": [
+        "comic_walker"
+      ],
+      "media factory": [
+        "comic_walker"
+      ],
+      "enterbrain": [
+        "comic_walker"
+      ],
+      "fujimi shobo": [
+        "comic_walker"
+      ],
+      "ascii media works": [
+        "comic_walker"
+      ],
+      "houbunsha": [
+        "comic_fuz"
+      ],
+      "ichijinsha": [
+        "comic_pool"
+      ],
+      "futabasha": [
+        "gaugau"
+      ],
+      "akita shoten": [
+        "manga_cross"
+      ],
+      "hakusensha": [
+        "manga_park"
+      ],
+      "overlap": [
+        "comic_gardo"
+      ]
+    }
+  },
+  "sources": {
+    "viz": {
+      "name": "VIZ Media / Shonen Jump",
+      "url": "https://www.viz.com",
+      "hosts": [
+        "viz.com"
+      ],
+      "access": [
+        "SUBSCRIPTION_WEB",
+        "FREE_OFFICIAL_WEB",
+        "DRM_EBOOK"
+      ],
+      "search": "https://www.viz.com/search?search={q}",
+      "languages": [
+        "en"
+      ],
+      "media": [
+        "manga",
+        "light-novel",
+        "guidebook",
+        "art-book",
+        "anthology",
+        "fanbook",
+        "colored-edition",
+        "visual-reference",
+        "special",
+        "other-official",
+        "official-doujin"
+      ],
+      "download_permitted": false,
+      "notes": "",
+      "origin": "default",
+      "id": "viz",
+      "adapter": "web",
+      "enabled": true,
+      "roles": [],
+      "capabilities": [
+        "MANUAL_ACQUISITION"
+      ]
+    },
+    "manga_plus": {
+      "name": "MANGA Plus by Shueisha",
+      "url": "https://mangaplus.shueisha.co.jp",
+      "hosts": [
+        "mangaplus.shueisha.co.jp"
+      ],
+      "access": [
+        "FREE_OFFICIAL_WEB",
+        "SUBSCRIPTION_WEB"
+      ],
+      "search": null,
+      "languages": [
+        "en",
+        "es"
+      ],
+      "media": [
+        "manga"
+      ],
+      "download_permitted": false,
+      "notes": "",
+      "origin": "default",
+      "id": "manga_plus",
+      "adapter": "web",
+      "enabled": true,
+      "roles": [],
+      "capabilities": [
+        "MANUAL_ACQUISITION"
+      ]
+    },
+    "k_manga": {
+      "name": "K MANGA (Kodansha)",
+      "url": "https://kmanga.kodansha.com",
+      "hosts": [
+        "kmanga.kodansha.com"
+      ],
+      "access": [
+        "FREE_OFFICIAL_WEB",
+        "PAID_WEB"
+      ],
+      "search": null,
+      "languages": [
+        "en"
+      ],
+      "media": [
+        "manga"
+      ],
+      "download_permitted": false,
+      "notes": "",
+      "origin": "default",
+      "id": "k_manga",
+      "adapter": "web",
+      "enabled": true,
+      "roles": [],
+      "capabilities": [
+        "MANUAL_ACQUISITION"
+      ]
+    },
+    "kodansha_us": {
+      "name": "Kodansha USA",
+      "url": "https://kodansha.us",
+      "hosts": [
+        "kodansha.us"
+      ],
+      "access": [
+        "DRM_EBOOK",
+        "PHYSICAL_ONLY"
+      ],
+      "search": "https://kodansha.us/?s={q}",
+      "languages": [
+        "en"
+      ],
+      "media": [
+        "manga",
+        "light-novel",
+        "guidebook",
+        "art-book",
+        "anthology",
+        "fanbook",
+        "colored-edition",
+        "visual-reference",
+        "special",
+        "other-official",
+        "official-doujin"
+      ],
+      "download_permitted": false,
+      "notes": "",
+      "origin": "default",
+      "id": "kodansha_us",
+      "adapter": "web",
+      "enabled": true,
+      "roles": [],
+      "capabilities": [
+        "MANUAL_ACQUISITION"
+      ]
+    },
+    "yen_press": {
+      "name": "Yen Press",
+      "url": "https://yenpress.com",
+      "hosts": [
+        "yenpress.com"
+      ],
+      "access": [
+        "DRM_EBOOK",
+        "PHYSICAL_ONLY"
+      ],
+      "search": null,
+      "languages": [
+        "en"
+      ],
+      "media": [
+        "manga",
+        "light-novel",
+        "guidebook",
+        "art-book",
+        "anthology",
+        "fanbook",
+        "colored-edition",
+        "visual-reference",
+        "special",
+        "other-official",
+        "official-doujin"
+      ],
+      "download_permitted": false,
+      "notes": "",
+      "origin": "default",
+      "id": "yen_press",
+      "adapter": "web",
+      "enabled": true,
+      "roles": [],
+      "capabilities": [
+        "MANUAL_ACQUISITION"
+      ]
+    },
+    "seven_seas": {
+      "name": "Seven Seas Entertainment",
+      "url": "https://sevenseasentertainment.com",
+      "hosts": [
+        "sevenseasentertainment.com"
+      ],
+      "access": [
+        "DRM_EBOOK",
+        "PHYSICAL_ONLY"
+      ],
+      "search": "https://sevenseasentertainment.com/?s={q}",
+      "languages": [
+        "en"
+      ],
+      "media": [
+        "manga",
+        "light-novel",
+        "guidebook",
+        "art-book",
+        "anthology",
+        "fanbook",
+        "colored-edition",
+        "visual-reference",
+        "special",
+        "other-official",
+        "official-doujin"
+      ],
+      "download_permitted": false,
+      "notes": "",
+      "origin": "default",
+      "id": "seven_seas",
+      "adapter": "web",
+      "enabled": true,
+      "roles": [],
+      "capabilities": [
+        "MANUAL_ACQUISITION"
+      ]
+    },
+    "square_enix": {
+      "name": "Square Enix Manga & Books",
+      "url": "https://squareenixmangaandbooks.square-enix-games.com",
+      "hosts": [
+        "squareenixmangaandbooks.square-enix-games.com"
+      ],
+      "access": [
+        "DRM_EBOOK",
+        "PHYSICAL_ONLY"
+      ],
+      "search": null,
+      "languages": [
+        "en"
+      ],
+      "media": [
+        "manga",
+        "light-novel",
+        "guidebook",
+        "art-book",
+        "anthology",
+        "fanbook",
+        "colored-edition",
+        "visual-reference",
+        "special",
+        "other-official",
+        "official-doujin"
+      ],
+      "download_permitted": false,
+      "notes": "",
+      "origin": "default",
+      "id": "square_enix",
+      "adapter": "web",
+      "enabled": true,
+      "roles": [],
+      "capabilities": [
+        "MANUAL_ACQUISITION"
+      ]
+    },
+    "manga_up": {
+      "name": "Manga UP! Global (Square Enix)",
+      "url": "https://global.manga-up.com",
+      "hosts": [
+        "global.manga-up.com"
+      ],
+      "access": [
+        "FREE_OFFICIAL_WEB",
+        "PAID_WEB"
+      ],
+      "search": null,
+      "languages": [
+        "en"
+      ],
+      "media": [
+        "manga"
+      ],
+      "download_permitted": false,
+      "notes": "",
+      "origin": "default",
+      "id": "manga_up",
+      "adapter": "web",
+      "enabled": true,
+      "roles": [],
+      "capabilities": [
+        "MANUAL_ACQUISITION"
+      ]
+    },
+    "tapas": {
+      "name": "Tapas",
+      "url": "https://tapas.io",
+      "hosts": [
+        "tapas.io"
+      ],
+      "access": [
+        "FREE_OFFICIAL_WEB",
+        "PAID_WEB"
+      ],
+      "search": null,
+      "languages": [
+        "en"
+      ],
+      "media": [
+        "manhwa",
+        "manga"
+      ],
+      "download_permitted": false,
+      "notes": "",
+      "origin": "default",
+      "id": "tapas",
+      "adapter": "web",
+      "enabled": true,
+      "roles": [],
+      "capabilities": [
+        "MANUAL_ACQUISITION"
+      ]
+    },
+    "webtoon": {
+      "name": "WEBTOON",
+      "url": "https://www.webtoons.com",
+      "hosts": [
+        "webtoons.com"
+      ],
+      "access": [
+        "FREE_OFFICIAL_WEB",
+        "PAID_WEB"
+      ],
+      "search": "https://www.webtoons.com/en/search?keyword={q}",
+      "languages": [
+        "en",
+        "es"
+      ],
+      "media": [
+        "manhwa"
+      ],
+      "download_permitted": false,
+      "notes": "",
+      "origin": "default",
+      "id": "webtoon",
+      "adapter": "web",
+      "enabled": true,
+      "roles": [],
+      "capabilities": [
+        "MANUAL_ACQUISITION"
+      ]
+    },
+    "jnovel_club": {
+      "name": "J-Novel Club",
+      "url": "https://j-novel.club",
+      "hosts": [
+        "j-novel.club"
+      ],
+      "access": [
+        "SUBSCRIPTION_WEB",
+        "DRM_FREE_PURCHASE"
+      ],
+      "search": null,
+      "languages": [
+        "en"
+      ],
+      "media": [
+        "light-novel",
+        "manga"
+      ],
+      "download_permitted": false,
+      "notes": "Premium membership / purchases give DRM-free EPUB downloads from your own account; the tool never logs in, so you download them yourself.",
+      "origin": "default",
+      "id": "jnovel_club",
+      "adapter": "web",
+      "enabled": true,
+      "roles": [],
+      "capabilities": [
+        "MANUAL_ACQUISITION"
+      ]
+    },
+    "humble_bundle": {
+      "name": "Humble Bundle (books)",
+      "url": "https://www.humblebundle.com/books",
+      "hosts": [
+        "humblebundle.com"
+      ],
+      "access": [
+        "DRM_FREE_PURCHASE"
+      ],
+      "search": null,
+      "languages": [
+        "en"
+      ],
+      "media": [
+        "manga",
+        "light-novel",
+        "guidebook",
+        "art-book",
+        "anthology",
+        "fanbook",
+        "colored-edition",
+        "visual-reference",
+        "special",
+        "other-official",
+        "official-doujin"
+      ],
+      "download_permitted": false,
+      "notes": "Occasional DRM-free manga/light-novel bundles; purchase and download from your account.",
+      "origin": "default",
+      "id": "humble_bundle",
+      "adapter": "web",
+      "enabled": true,
+      "roles": [],
+      "capabilities": [
+        "MANUAL_ACQUISITION"
+      ]
+    },
+    "bookwalker_global": {
+      "name": "BOOK☆WALKER Global",
+      "url": "https://global.bookwalker.jp",
+      "hosts": [
+        "global.bookwalker.jp"
+      ],
+      "access": [
+        "DRM_EBOOK"
+      ],
+      "search": "https://global.bookwalker.jp/search/?word={q}",
+      "languages": [
+        "en"
+      ],
+      "media": [
+        "manga",
+        "light-novel",
+        "guidebook",
+        "art-book",
+        "anthology",
+        "fanbook",
+        "colored-edition",
+        "visual-reference",
+        "special",
+        "other-official",
+        "official-doujin"
+      ],
+      "download_permitted": false,
+      "notes": "",
+      "origin": "default",
+      "id": "bookwalker_global",
+      "adapter": "web",
+      "enabled": true,
+      "roles": [
+        "store-search",
+        "store-search-en"
+      ],
+      "capabilities": [
+        "MANUAL_ACQUISITION"
+      ]
+    },
+    "amazon_us": {
+      "name": "Amazon / Kindle (US)",
+      "url": "https://www.amazon.com",
+      "hosts": [
+        "amazon.com"
+      ],
+      "access": [
+        "DRM_EBOOK",
+        "PHYSICAL_ONLY"
+      ],
+      "search": "https://www.amazon.com/s?k={q}",
+      "languages": [
+        "en"
+      ],
+      "media": [
+        "manga",
+        "light-novel",
+        "guidebook",
+        "art-book",
+        "anthology",
+        "fanbook",
+        "colored-edition",
+        "visual-reference",
+        "special",
+        "other-official",
+        "official-doujin"
+      ],
+      "download_permitted": false,
+      "notes": "",
+      "origin": "default",
+      "id": "amazon_us",
+      "adapter": "web",
+      "enabled": true,
+      "roles": [
+        "store-search",
+        "store-search-en"
+      ],
+      "capabilities": [
+        "MANUAL_ACQUISITION"
+      ]
+    },
+    "kobo": {
+      "name": "Kobo",
+      "url": "https://www.kobo.com",
+      "hosts": [
+        "kobo.com"
+      ],
+      "access": [
+        "DRM_EBOOK"
+      ],
+      "search": "https://www.kobo.com/search?query={q}",
+      "languages": [
+        "en"
+      ],
+      "media": [
+        "manga",
+        "light-novel",
+        "guidebook",
+        "art-book",
+        "anthology",
+        "fanbook",
+        "colored-edition",
+        "visual-reference",
+        "special",
+        "other-official",
+        "official-doujin"
+      ],
+      "download_permitted": false,
+      "notes": "",
+      "origin": "default",
+      "id": "kobo",
+      "adapter": "web",
+      "enabled": true,
+      "roles": [
+        "store-search",
+        "store-search-en"
+      ],
+      "capabilities": [
+        "MANUAL_ACQUISITION"
+      ]
+    },
+    "google_play_books": {
+      "name": "Google Play Books",
+      "url": "https://play.google.com/store/books",
+      "hosts": [
+        "play.google.com"
+      ],
+      "access": [
+        "DRM_EBOOK"
+      ],
+      "search": "https://play.google.com/store/search?q={q}&c=books",
+      "languages": [
+        "en"
+      ],
+      "media": [
+        "manga",
+        "light-novel",
+        "guidebook",
+        "art-book",
+        "anthology",
+        "fanbook",
+        "colored-edition",
+        "visual-reference",
+        "special",
+        "other-official",
+        "official-doujin"
+      ],
+      "download_permitted": false,
+      "notes": "",
+      "origin": "default",
+      "id": "google_play_books",
+      "adapter": "web",
+      "enabled": true,
+      "roles": [
+        "store-search-en"
+      ],
+      "capabilities": [
+        "MANUAL_ACQUISITION"
+      ]
+    },
+    "libby": {
+      "name": "Libby / OverDrive (public library)",
+      "url": "https://libbyapp.com",
+      "hosts": [
+        "libbyapp.com",
+        "overdrive.com"
+      ],
+      "access": [
+        "LIBRARY_LENDING"
+      ],
+      "search": null,
+      "languages": [
+        "en"
+      ],
+      "media": [
+        "manga",
+        "light-novel",
+        "guidebook",
+        "art-book",
+        "anthology",
+        "fanbook",
+        "colored-edition",
+        "visual-reference",
+        "special",
+        "other-official",
+        "official-doujin"
+      ],
+      "download_permitted": false,
+      "notes": "",
+      "origin": "default",
+      "id": "libby",
+      "adapter": "web",
+      "enabled": true,
+      "roles": [
+        "library-lending"
+      ],
+      "capabilities": [
+        "MANUAL_ACQUISITION"
+      ]
+    },
+    "hoopla": {
+      "name": "hoopla (public library)",
+      "url": "https://www.hoopladigital.com",
+      "hosts": [
+        "hoopladigital.com"
+      ],
+      "access": [
+        "LIBRARY_LENDING"
+      ],
+      "search": "https://www.hoopladigital.com/search?q={q}",
+      "languages": [
+        "en"
+      ],
+      "media": [
+        "manga",
+        "light-novel",
+        "guidebook",
+        "art-book",
+        "anthology",
+        "fanbook",
+        "colored-edition",
+        "visual-reference",
+        "special",
+        "other-official",
+        "official-doujin",
+        "anime"
+      ],
+      "download_permitted": false,
+      "notes": "",
+      "origin": "default",
+      "id": "hoopla",
+      "adapter": "web",
+      "enabled": true,
+      "roles": [
+        "library-lending"
+      ],
+      "capabilities": [
+        "MANUAL_ACQUISITION"
+      ]
+    },
+    "bookwalker_jp": {
+      "name": "BOOK☆WALKER (Japan)",
+      "url": "https://bookwalker.jp",
+      "hosts": [
+        "bookwalker.jp"
+      ],
+      "access": [
+        "DRM_EBOOK"
+      ],
+      "search": "https://bookwalker.jp/search/?word={q}",
+      "languages": [
+        "ja"
+      ],
+      "media": [
+        "manga",
+        "light-novel",
+        "guidebook",
+        "art-book",
+        "anthology",
+        "fanbook",
+        "colored-edition",
+        "visual-reference",
+        "special",
+        "other-official",
+        "official-doujin"
+      ],
+      "download_permitted": false,
+      "notes": "",
+      "origin": "default",
+      "id": "bookwalker_jp",
+      "adapter": "web",
+      "enabled": true,
+      "roles": [
+        "store-search",
+        "store-search-ja"
+      ],
+      "capabilities": [
+        "MANUAL_ACQUISITION"
+      ]
+    },
+    "amazon_jp": {
+      "name": "Amazon.co.jp / Kindle (Japan)",
+      "url": "https://www.amazon.co.jp",
+      "hosts": [
+        "amazon.co.jp"
+      ],
+      "access": [
+        "DRM_EBOOK",
+        "PHYSICAL_ONLY"
+      ],
+      "search": "https://www.amazon.co.jp/s?k={q}",
+      "languages": [
+        "ja"
+      ],
+      "media": [
+        "manga",
+        "light-novel",
+        "guidebook",
+        "art-book",
+        "anthology",
+        "fanbook",
+        "colored-edition",
+        "visual-reference",
+        "special",
+        "other-official",
+        "official-doujin"
+      ],
+      "download_permitted": false,
+      "notes": "",
+      "origin": "default",
+      "id": "amazon_jp",
+      "adapter": "web",
+      "enabled": true,
+      "roles": [
+        "store-search",
+        "store-search-ja"
+      ],
+      "capabilities": [
+        "MANUAL_ACQUISITION"
+      ]
+    },
+    "shonen_jump_plus": {
+      "name": "Shonen Jump+ (Shueisha)",
+      "url": "https://shonenjumpplus.com",
+      "hosts": [
+        "shonenjumpplus.com"
+      ],
+      "access": [
+        "FREE_OFFICIAL_WEB",
+        "PAID_WEB"
+      ],
+      "search": null,
+      "languages": [
+        "ja"
+      ],
+      "media": [
+        "manga"
+      ],
+      "download_permitted": false,
+      "notes": "",
+      "origin": "default",
+      "id": "shonen_jump_plus",
+      "adapter": "web",
+      "enabled": true,
+      "roles": [],
+      "capabilities": [
+        "MANUAL_ACQUISITION"
+      ]
+    },
+    "tonari_no_young_jump": {
+      "name": "Tonari no Young Jump (Shueisha)",
+      "url": "https://tonarinoyj.jp",
+      "hosts": [
+        "tonarinoyj.jp"
+      ],
+      "access": [
+        "FREE_OFFICIAL_WEB"
+      ],
+      "search": null,
+      "languages": [
+        "ja"
+      ],
+      "media": [
+        "manga"
+      ],
+      "download_permitted": false,
+      "notes": "",
+      "origin": "default",
+      "id": "tonari_no_young_jump",
+      "adapter": "web",
+      "enabled": true,
+      "roles": [],
+      "capabilities": [
+        "MANUAL_ACQUISITION"
+      ]
+    },
+    "comic_days": {
+      "name": "Comic DAYS (Kodansha)",
+      "url": "https://comic-days.com",
+      "hosts": [
+        "comic-days.com"
+      ],
+      "access": [
+        "FREE_OFFICIAL_WEB",
+        "PAID_WEB"
+      ],
+      "search": null,
+      "languages": [
+        "ja"
+      ],
+      "media": [
+        "manga"
+      ],
+      "download_permitted": false,
+      "notes": "",
+      "origin": "default",
+      "id": "comic_days",
+      "adapter": "web",
+      "enabled": true,
+      "roles": [],
+      "capabilities": [
+        "MANUAL_ACQUISITION"
+      ]
+    },
+    "magazine_pocket": {
+      "name": "Magazine Pocket (Kodansha)",
+      "url": "https://pocket.shonenmagazine.com",
+      "hosts": [
+        "pocket.shonenmagazine.com"
+      ],
+      "access": [
+        "FREE_OFFICIAL_WEB",
+        "PAID_WEB"
+      ],
+      "search": null,
+      "languages": [
+        "ja"
+      ],
+      "media": [
+        "manga"
+      ],
+      "download_permitted": false,
+      "notes": "",
+      "origin": "default",
+      "id": "magazine_pocket",
+      "adapter": "web",
+      "enabled": true,
+      "roles": [],
+      "capabilities": [
+        "MANUAL_ACQUISITION"
+      ]
+    },
+    "sunday_webry": {
+      "name": "Sunday Webry (Shogakukan)",
+      "url": "https://www.sunday-webry.com",
+      "hosts": [
+        "sunday-webry.com"
+      ],
+      "access": [
+        "FREE_OFFICIAL_WEB",
+        "PAID_WEB"
+      ],
+      "search": null,
+      "languages": [
+        "ja"
+      ],
+      "media": [
+        "manga"
+      ],
+      "download_permitted": false,
+      "notes": "",
+      "origin": "default",
+      "id": "sunday_webry",
+      "adapter": "web",
+      "enabled": true,
+      "roles": [],
+      "capabilities": [
+        "MANUAL_ACQUISITION"
+      ]
+    },
+    "manga_one": {
+      "name": "MangaONE (Shogakukan)",
+      "url": "https://manga-one.com",
+      "hosts": [
+        "manga-one.com"
+      ],
+      "access": [
+        "FREE_OFFICIAL_WEB",
+        "PAID_WEB"
+      ],
+      "search": null,
+      "languages": [
+        "ja"
+      ],
+      "media": [
+        "manga"
+      ],
+      "download_permitted": false,
+      "notes": "",
+      "origin": "default",
+      "id": "manga_one",
+      "adapter": "web",
+      "enabled": true,
+      "roles": [],
+      "capabilities": [
+        "MANUAL_ACQUISITION"
+      ]
+    },
+    "manga_up_jp": {
+      "name": "マンガUP! (Square Enix)",
+      "url": "https://www.manga-up.com",
+      "hosts": [
+        "manga-up.com"
+      ],
+      "access": [
+        "FREE_OFFICIAL_WEB",
+        "PAID_WEB"
+      ],
+      "search": null,
+      "languages": [
+        "ja"
+      ],
+      "media": [
+        "manga"
+      ],
+      "download_permitted": false,
+      "notes": "",
+      "origin": "default",
+      "id": "manga_up_jp",
+      "adapter": "web",
+      "enabled": true,
+      "roles": [],
+      "capabilities": [
+        "MANUAL_ACQUISITION"
+      ]
+    },
+    "comic_walker": {
+      "name": "ComicWalker (KADOKAWA)",
+      "url": "https://comic-walker.com",
+      "hosts": [
+        "comic-walker.com"
+      ],
+      "access": [
+        "FREE_OFFICIAL_WEB"
+      ],
+      "search": null,
+      "languages": [
+        "ja"
+      ],
+      "media": [
+        "manga"
+      ],
+      "download_permitted": false,
+      "notes": "",
+      "origin": "default",
+      "id": "comic_walker",
+      "adapter": "web",
+      "enabled": true,
+      "roles": [],
+      "capabilities": [
+        "MANUAL_ACQUISITION"
+      ]
+    },
+    "comic_fuz": {
+      "name": "COMIC FUZ (Houbunsha)",
+      "url": "https://comic-fuz.com",
+      "hosts": [
+        "comic-fuz.com"
+      ],
+      "access": [
+        "FREE_OFFICIAL_WEB",
+        "PAID_WEB"
+      ],
+      "search": null,
+      "languages": [
+        "ja"
+      ],
+      "media": [
+        "manga"
+      ],
+      "download_permitted": false,
+      "notes": "",
+      "origin": "default",
+      "id": "comic_fuz",
+      "adapter": "web",
+      "enabled": true,
+      "roles": [],
+      "capabilities": [
+        "MANUAL_ACQUISITION"
+      ]
+    },
+    "comic_pool": {
+      "name": "Comic Pool (Ichijinsha / Kodansha)",
+      "url": "https://www.comic-pool.jp",
+      "hosts": [
+        "comic-pool.jp"
+      ],
+      "access": [
+        "FREE_OFFICIAL_WEB"
+      ],
+      "search": null,
+      "languages": [
+        "ja"
+      ],
+      "media": [
+        "manga"
+      ],
+      "download_permitted": false,
+      "notes": "",
+      "origin": "default",
+      "id": "comic_pool",
+      "adapter": "web",
+      "enabled": true,
+      "roles": [],
+      "capabilities": [
+        "MANUAL_ACQUISITION"
+      ]
+    },
+    "gaugau": {
+      "name": "Gaugau Monster (Futabasha)",
+      "url": "https://gaugau.futabanet.jp",
+      "hosts": [
+        "gaugau.futabanet.jp"
+      ],
+      "access": [
+        "FREE_OFFICIAL_WEB"
+      ],
+      "search": null,
+      "languages": [
+        "ja"
+      ],
+      "media": [
+        "manga"
+      ],
+      "download_permitted": false,
+      "notes": "",
+      "origin": "default",
+      "id": "gaugau",
+      "adapter": "web",
+      "enabled": true,
+      "roles": [],
+      "capabilities": [
+        "MANUAL_ACQUISITION"
+      ]
+    },
+    "manga_cross": {
+      "name": "Manga Cross (Akita Shoten)",
+      "url": "https://mangacross.jp",
+      "hosts": [
+        "mangacross.jp"
+      ],
+      "access": [
+        "FREE_OFFICIAL_WEB"
+      ],
+      "search": null,
+      "languages": [
+        "ja"
+      ],
+      "media": [
+        "manga"
+      ],
+      "download_permitted": false,
+      "notes": "",
+      "origin": "default",
+      "id": "manga_cross",
+      "adapter": "web",
+      "enabled": true,
+      "roles": [],
+      "capabilities": [
+        "MANUAL_ACQUISITION"
+      ]
+    },
+    "manga_park": {
+      "name": "Manga Park (Hakusensha)",
+      "url": "https://manga-park.com",
+      "hosts": [
+        "manga-park.com"
+      ],
+      "access": [
+        "FREE_OFFICIAL_WEB",
+        "PAID_WEB"
+      ],
+      "search": null,
+      "languages": [
+        "ja"
+      ],
+      "media": [
+        "manga"
+      ],
+      "download_permitted": false,
+      "notes": "",
+      "origin": "default",
+      "id": "manga_park",
+      "adapter": "web",
+      "enabled": true,
+      "roles": [],
+      "capabilities": [
+        "MANUAL_ACQUISITION"
+      ]
+    },
+    "comic_gardo": {
+      "name": "Comic Gardo (Overlap)",
+      "url": "https://comic-gardo.com",
+      "hosts": [
+        "comic-gardo.com"
+      ],
+      "access": [
+        "FREE_OFFICIAL_WEB"
+      ],
+      "search": null,
+      "languages": [
+        "ja"
+      ],
+      "media": [
+        "manga"
+      ],
+      "download_permitted": false,
+      "notes": "",
+      "origin": "default",
+      "id": "comic_gardo",
+      "adapter": "web",
+      "enabled": true,
+      "roles": [],
+      "capabilities": [
+        "MANUAL_ACQUISITION"
+      ]
+    },
+    "crunchyroll": {
+      "name": "Crunchyroll",
+      "url": "https://www.crunchyroll.com",
+      "hosts": [
+        "crunchyroll.com"
+      ],
+      "access": [
+        "STREAMING"
+      ],
+      "search": "https://www.crunchyroll.com/search?q={q}",
+      "languages": [
+        "en",
+        "es",
+        "ja"
+      ],
+      "media": [
+        "anime"
+      ],
+      "download_permitted": false,
+      "notes": "",
+      "origin": "default",
+      "id": "crunchyroll",
+      "adapter": "web",
+      "enabled": true,
+      "roles": [
+        "anime-streaming"
+      ],
+      "capabilities": [
+        "MANUAL_ACQUISITION"
+      ]
+    },
+    "netflix": {
+      "name": "Netflix",
+      "url": "https://www.netflix.com",
+      "hosts": [
+        "netflix.com"
+      ],
+      "access": [
+        "STREAMING"
+      ],
+      "search": "https://www.netflix.com/search?q={q}",
+      "languages": [
+        "en",
+        "es",
+        "ja"
+      ],
+      "media": [
+        "anime"
+      ],
+      "download_permitted": false,
+      "notes": "",
+      "origin": "default",
+      "id": "netflix",
+      "adapter": "web",
+      "enabled": true,
+      "roles": [
+        "anime-streaming"
+      ],
+      "capabilities": [
+        "MANUAL_ACQUISITION"
+      ]
+    },
+    "hidive": {
+      "name": "HIDIVE",
+      "url": "https://www.hidive.com",
+      "hosts": [
+        "hidive.com"
+      ],
+      "access": [
+        "STREAMING"
+      ],
+      "search": "https://www.hidive.com/search?q={q}",
+      "languages": [
+        "en"
+      ],
+      "media": [
+        "anime"
+      ],
+      "download_permitted": false,
+      "notes": "",
+      "origin": "default",
+      "id": "hidive",
+      "adapter": "web",
+      "enabled": true,
+      "roles": [
+        "anime-streaming"
+      ],
+      "capabilities": [
+        "MANUAL_ACQUISITION"
+      ]
+    }
+  }
+}

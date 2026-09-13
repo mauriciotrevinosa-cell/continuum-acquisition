@@ -1,0 +1,7 @@
+__pycache__/
+*.py[cod]
+logs/
+*.log
+.pytest_cache/
+# Personal data never lives here: it lives in the data directory.
+*.bak-*
