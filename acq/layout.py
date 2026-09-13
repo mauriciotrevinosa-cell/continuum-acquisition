@@ -17,7 +17,7 @@ from collections import Counter, defaultdict
 
 from . import taxonomy
 from .catalog import Catalog, add_alias, distinct_similarity, family_names, family_tokens, work_titles
-from .util import LOG, norm, now_iso, safe_folder_name, similarity
+from .util import LOG, norm, now_iso, safe_folder_name, similarity, slug
 from . import vault_scan
 
 LAYOUT_SCHEMA = "continuum.personal.vault-layout/1"
@@ -66,6 +66,17 @@ class Tree:
     def files_under(self, rel: str) -> list[str]:
         prefix = rel.lower().rstrip("/") + "/"
         return [f for f in self.files if f.lower().startswith(prefix)]
+
+
+def other_names(fam: dict) -> list[str]:
+    """Names for this family besides its own and its folder's.
+
+    Computed by exclusion rather than by position: when a family was adopted
+    from a Vault folder, its name IS the folder name, the two collapse into
+    one entry, and dropping a fixed two would swallow a real alias.
+    """
+    own = {norm(fam.get("family")), norm(fam.get("vault_family_folder"))}
+    return [n for n in family_names(fam) if norm(n) not in own]
 
 
 def krel_of(family_folder: str, cls: str, child: str) -> str:
@@ -117,6 +128,114 @@ def _series_counter(tree: Tree, rels) -> Counter:
 # ---------------------------------------------------------------------------
 # metadata passes (catalog only)
 # ---------------------------------------------------------------------------
+def adopt_vault_families(cat: Catalog, tree: Tree) -> list[dict]:
+    """Register a top-level Vault folder the catalog has never heard of.
+
+    Adding a series is dropping a folder into the Vault. Until this pass
+    existed, such a folder was only *reported* as UNEXPECTED, so a user who
+    added five series saw five warnings and no library entries.
+
+    What is adopted is what the folder states about itself:
+
+    * the folder name is the family name, spelled exactly as on disk. It is
+      never corrected, tidied or renamed - a misspelling the user typed is
+      still their folder, and a rename is a destructive change this tool does
+      not make;
+    * series names found in the files become aliases, so the real spelling is
+      searchable without the folder moving;
+    * a relation is only ever what the taxonomy can *derive*. Nothing here
+      declares a work official, canonical or main by assumption.
+
+    Refused deliberately:
+
+    * a folder that resembles an existing family (it is a possible duplicate,
+      and merging by guess would bury one of them);
+    * a folder with no media under a story class - an empty shell, a scratch
+      directory, or a name beginning with "_" or "." that is plainly not a
+      series.
+
+    Everything adopted lands as review_status REVIEW: it enters the library
+    where the user can see it, and stays flagged until they confirm it.
+    """
+    changes: list[dict] = []
+    known = {f["vault_family_folder"].lower() for f in cat.families}
+    known |= {norm(n) for f in cat.families for n in family_names(f)}
+    for d in sorted(tree.children.get("", [])):
+        if d.lower() in known or norm(d) in known:
+            continue
+        if d.startswith((".", "_")):
+            continue
+        # A near-match is a question for the user, not an answer for us.
+        similar = max((similarity(d, n) for f in cat.families for n in family_names(f)), default=0.0)
+        if cat.families_matching(d) or similar >= EQUIV_WEAK:
+            continue
+        classes = [c for c in tree.kids(d)
+                   if c.lower() in taxonomy.MATERIAL_CLASSES and c.lower() not in taxonomy.FAN_CLASSES]
+        media = [r for c in classes for r in tree.files_under(f"{d}/{c}")
+                 if tree.files[r].get("kind") in vault_scan.MEDIA_KINDS
+                 and not vault_scan.is_foreign_payload(tree.files[r])]
+        if not media:
+            continue
+        series = _series_counter(tree, media)
+        held = Counter(c.lower() for c in classes
+                       for r in tree.files_under(f"{d}/{c}") if r in set(media))
+        primary = held.most_common(1)[0][0] if held else "manga"
+        fam = {"order": 900 + len(cat.families), "family": d, "vault_family_folder": d,
+               "medium": primary if primary in taxonomy.STORY_CLASSES else "manga",
+               "works": [], "notes": "Adopted from an existing Vault folder; not reviewed yet.",
+               "category": None, "id": slug(d), "external_ids": {},
+               "aliases": [s for s in series if norm(s) != norm(d)],
+               "origin": "vault-adopted", "review_status": "REVIEW",
+               "provenance": [{"at": now_iso(), "source": "vault-layout",
+                               "evidence": f"top-level folder '{d}' holding {len(media)} media file(s) "
+                                           f"under {', '.join(sorted(held)) or 'no class folder'}"}]}
+        ids = {f.get("id") for f in cat.families}
+        base, n = fam["id"], 2
+        while fam["id"] in ids:
+            fam["id"], n = f"{base}-{n}", n + 1
+        cat.families.append(fam)
+        cat.dirty = True
+        known.add(d.lower())
+        changes.append({"action": "ADOPT_FAMILY", "family": d, "work": "",
+                        "path": d, "files": len(media), "classes": sorted(held)})
+        # Files sitting straight in <Family>/<class>/ are the common shape of
+        # a downloaded series. They get a work at THAT path (a legacy
+        # mapping), because the alternative is moving the user's files.
+        # Sub-folders are left to adopt_vault_folders, which runs next and
+        # gives each one its own work.
+        for cls in classes:
+            crel, kind = f"{d}/{cls}", cls.lower()
+            direct = [r for r in tree.files_in.get(tree.actual(crel) or crel, [])
+                      if tree.files[r].get("kind") in vault_scan.MEDIA_KINDS
+                      and not vault_scan.is_foreign_payload(tree.files[r])]
+            if not direct:
+                continue
+            names = _series_counter(tree, direct)
+            title = names.most_common(1)[0][0] if names else d
+            relation, why = taxonomy.classify([title, d])
+            cat.add_work(fam, {
+                # vault_subpath keeps the folder's real spelling; the class is
+                # the vocabulary term it names.
+                "work": title, "role": None, "vault_subpath": cls, "declared_status": None,
+                "candidate_sources": [], "intake_aliases": [], "availability": "unknown",
+                "notes": "Adopted from an existing Vault folder; relation and official status "
+                         "need review.",
+                "origin": "vault-adopted", "official": None, "confidence": "medium",
+                "review_status": "REVIEW", "relation": relation,
+                "medium": kind if kind in taxonomy.STORY_CLASSES else fam.get("medium"),
+                "material_class": (taxonomy.material_class(relation, kind)
+                                   if relation != taxonomy.UNKNOWN else kind),
+                "titles": {"canonical": title, "en": None, "ja": None, "romaji": None},
+                "aliases": [s for s in names if norm(s) != norm(title)],
+                "path_origin": "adopted",
+                "provenance": [{"at": now_iso(), "source": "vault-layout",
+                                "evidence": f"{len(direct)} file(s) directly in {crel}; "
+                                            f"classified by {why}"}]})
+            changes.append({"action": "ADOPT", "family": d, "work": title, "path": crel,
+                            "relation": relation, "why": why})
+    return changes
+
+
 def adopt_vault_folders(cat: Catalog, tree: Tree) -> list[dict]:
     """Register what the user already built so nothing in the Vault is
     'unknown': (1) point an EMPTY curated class-root work at the single child
@@ -403,7 +522,7 @@ def build_layout(cat: Catalog, tree: Tree, *, unofficial_hosts=(), scaffold_log:
             langs = Counter((tree.files[x].get("archive") or {}).get("language") for x in wfiles)
             hosts = Counter(h for x in wfiles for h in ((tree.files[x].get("archive") or {}).get("web_hosts") or []))
             rows.append({
-                "family_id": fam["id"], "family_title": fam["family"], "family_aliases": family_names(fam)[2:],
+                "family_id": fam["id"], "family_title": fam["family"], "family_aliases": other_names(fam),
                 "medium": w.get("medium"), "work_id": w["id"], "canonical_title": w["titles"].get("canonical") or w["work"],
                 "work": w["work"], "aliases": work_titles(w)[1:], "relationship_type": w.get("relation"),
                 "material_class": w.get("material_class"), "edition": w.get("edition"),
@@ -466,7 +585,7 @@ def build_layout(cat: Catalog, tree: Tree, *, unofficial_hosts=(), scaffold_log:
                                  + "; ".join(inside) + " — reported only, nothing deleted",
                                  "review_required": False})
         families_out.append({
-            "family_id": fam["id"], "family_title": fam["family"], "family_aliases": family_names(fam)[2:],
+            "family_id": fam["id"], "family_title": fam["family"], "family_aliases": other_names(fam),
             "category": fam.get("category"), "family_path": os.path.join(cat.vault_root, frel_expected),
             "folder_exists": bool(frel), "primary_medium": fam.get("medium"), "classes": class_info,
             "expected_classes": expected_classes, "works": rows, "findings": findings,

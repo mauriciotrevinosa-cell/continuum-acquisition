@@ -115,7 +115,10 @@ class Ctx:
         self.require_catalog()
         idx = self.index(rescan)
         tree = layout.Tree(self.cat.vault_root, idx)
-        changes = layout.adopt_vault_folders(self.cat, tree)
+        # Families first: a folder nobody has claimed becomes a family, and
+        # only then can the pass below adopt the works inside it.
+        changes = layout.adopt_vault_families(self.cat, tree)
+        changes += layout.adopt_vault_folders(self.cat, tree)
         aliases = layout.harvest_aliases(self.cat, tree)
         planned = layout.plan_paths(self.cat, tree)
         if self.cat.dirty:

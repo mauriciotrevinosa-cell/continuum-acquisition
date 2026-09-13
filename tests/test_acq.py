@@ -125,12 +125,83 @@ class Base(unittest.TestCase):
         cat = cat or Catalog(self.cat_path)
         idx = vault_scan.scan_vault(self.vault, os.path.join(self.data, "vault-index.json"))
         tree = layout.Tree(self.vault, idx)
-        adopted = layout.adopt_vault_folders(cat, tree)
+        adopted = layout.adopt_vault_families(cat, tree)
+        adopted += layout.adopt_vault_folders(cat, tree)
         layout.harvest_aliases(cat, tree)
         layout.plan_paths(cat, tree)
         lay = layout.build_layout(cat, tree, unofficial_hosts=["comix.to"])
         cov = coverage.compute(cat, tree)
         return cat, idx, tree, lay, cov, adopted
+
+
+# ---------------------------------------------------------------------------
+class TestAdoptNewFamilies(Base):
+    """A folder the user dropped in becomes a library entry, not a warning."""
+
+    def test_a_new_top_level_folder_becomes_a_family(self):
+        v = self.vault
+        make_zip(f"{v}/Epsilon Tales/manga/Epsilon-Tales-part-01.zip", ["0001", "0002"], "Epsilon Tales")
+        make_zip(f"{v}/Epsilon Tales/manga/Epsilon-Tales-part-02.zip", ["0003"], "Epsilon Tales")
+        os.makedirs(f"{v}/Epsilon Tales/anime")
+        cat, _idx, _tree, lay, _cov, adopted = self.state()
+
+        fam = cat.get_family("Epsilon Tales")
+        self.assertIsNotNone(fam, "a new Vault folder must enter the catalog")
+        self.assertEqual(fam["vault_family_folder"], "Epsilon Tales", "the folder is never renamed")
+        self.assertEqual(fam["origin"], "vault-adopted")
+        self.assertEqual(fam["review_status"], "REVIEW", "adopted, but still the user's to confirm")
+        self.assertIsNone(fam["category"], "a category is the user's judgement, not ours")
+        self.assertTrue(any(c["action"] == "ADOPT_FAMILY" and c["family"] == "Epsilon Tales"
+                            for c in adopted))
+        self.assertTrue(fam["works"], "its works are adopted in the same pass")
+        for w in fam["works"]:
+            self.assertIsNone(w["official"], "nothing is declared official by assumption")
+            self.assertEqual(w["review_status"], "REVIEW")
+        paths = [g["path"] for g in lay["global_findings"] if g["type"] == "UNEXPECTED"]
+        self.assertNotIn("Epsilon Tales", paths, "adopted, so no longer an unexplained folder")
+        self.assertVaultFilesUntouched()
+
+    def test_a_folder_that_looks_like_a_known_family_is_left_for_the_user(self):
+        """Alpha-Saga next to Alpha Saga: a merge by guess buries one of them."""
+        cat, _idx, _tree, lay, _cov, adopted = self.state()
+        self.assertFalse([c for c in adopted if c["action"] == "ADOPT_FAMILY"
+                          and c["family"] == "Alpha-Saga"])
+        self.assertNotIn("Alpha-Saga", [f["vault_family_folder"] for f in cat.families])
+        kinds = {g["type"] for g in lay["global_findings"] if g["path"] == "Alpha-Saga"}
+        self.assertEqual(kinds, {"DUPLICATE_FAMILY_CANDIDATE"})
+
+    def test_an_empty_or_private_folder_is_not_a_series(self):
+        v = self.vault
+        os.makedirs(f"{v}/Zeta Empty/manga")
+        os.makedirs(f"{v}/_scratch/manga")
+        make_zip(f"{v}/_scratch/manga/s.zip", ["0001"], "Scratch")
+        cat, _idx, _tree, _lay, _cov, adopted = self.state()
+        adopted_families = {c["family"] for c in adopted if c["action"] == "ADOPT_FAMILY"}
+        self.assertNotIn("Zeta Empty", adopted_families, "no media: nothing to adopt")
+        self.assertNotIn("_scratch", adopted_families, "a leading underscore is not a series")
+        self.assertNotIn("_scratch", [f["vault_family_folder"] for f in cat.families])
+
+    def test_the_spelling_on_disk_wins_and_the_real_title_becomes_an_alias(self):
+        v = self.vault
+        make_zip(f"{v}/Eta Chronicals/manga/e.zip", ["0001"], "Eta Chronicles")
+        cat, _idx, _tree, lay, _cov, _adopted = self.state()
+        fam = cat.get_family("Eta Chronicals")
+        self.assertEqual(fam["family"], "Eta Chronicals", "the misspelling is the user's folder")
+        self.assertIn("Eta Chronicles", fam["aliases"], "the real title is searchable anyway")
+        # An adopted family is named after its folder, so the two names
+        # collapse into one - the alias must survive that.
+        row = next(f for f in lay["families"] if f["family_title"] == "Eta Chronicals")
+        self.assertEqual(row["family_aliases"], ["Eta Chronicles"])
+        self.assertVaultFilesUntouched()
+
+    def test_adoption_scales_with_the_library_and_not_with_the_code(self):
+        v = self.vault
+        for n in range(12):
+            make_zip(f"{v}/Series {n:02d} Unique/manga/s.zip", ["0001"], f"Series {n:02d} Unique")
+        cat, _idx, _tree, _lay, _cov, adopted = self.state()
+        self.assertEqual(len([c for c in adopted if c["action"] == "ADOPT_FAMILY"]), 12)
+        ids = [f["id"] for f in cat.families]
+        self.assertEqual(len(ids), len(set(ids)), "family ids stay unique")
 
 
 # ---------------------------------------------------------------------------
