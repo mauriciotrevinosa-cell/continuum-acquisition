@@ -304,6 +304,24 @@ class TestLocalMaterialIsNeverMissing(Base):
         self.assertEqual(arch["video_entries"][0]["name"], "Season 2/Demo Saga S2 - 01.mkv")
         self.assertVaultFilesUntouched()
 
+    def test_typescript_is_not_video(self):
+        """".ts" names TypeScript as well as transport streams: an application
+        archive's sources are not episodes."""
+        v = self.vault
+        make_zip(f"{v}/Alpha Saga/anime/app-win32.zip",
+                 extra={"app/types/index.d.ts": b"export {};", "app/main.ts": b"let x = 1;",
+                        "app/app.exe": b"MZ"})
+        make_zip(f"{v}/Alpha Saga/anime/streams.zip",
+                 extra={"S1/Demo Saga S1 - 04.ts": b"\0" * (600 * 1024), "S1/player.d.ts": b"export {};"})
+        cat, idx, _tree, _lay, _cov, _adopted = self.state(Catalog(self.cat_path))
+        app = idx["files"]["Alpha Saga/anime/app-win32.zip"]["archive"]
+        self.assertEqual(app["videos"], 0)
+        self.assertEqual(app["video_entries"], [])
+        streams = idx["files"]["Alpha Saga/anime/streams.zip"]["archive"]
+        self.assertEqual(streams["videos"], 1)
+        self.assertEqual([e["name"] for e in streams["video_entries"]], ["S1/Demo Saga S1 - 04.ts"])
+        self.assertVaultFilesUntouched()
+
     def test_units_are_in_reading_order_not_download_order(self):
         v = self.vault
         make_zip(f"{v}/Beta Days/manga/Beta Days/b-part-01.zip", ["0020", "0021"], "Beta Days", salt="late")

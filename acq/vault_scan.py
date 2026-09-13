@@ -20,7 +20,11 @@ from .util import LOG, now_iso, read_json, sha256_file, write_json
 INDEX_SCHEMA = "continuum.personal.vault-index/1"
 #: 3: archives record the media they contain (videos with names), so bundled
 #: episodes are counted from the archive, never from the number of archives.
-SCAN_VERSION = 3
+#: 4: ".ts" inside an archive is video only when it is a transport stream, not
+#: TypeScript (declaration files, or sources far too small to be footage).
+SCAN_VERSION = 4
+#: Smallest contained ".ts" counted as a transport stream.
+MIN_TRANSPORT_STREAM_BYTES = 512 * 1024
 #: Contained video entries recorded per archive. Names only - enough to read
 #: seasons and episodes - never the bytes.
 MAX_CONTAINED_ENTRIES = 400
@@ -49,6 +53,18 @@ def chapter_key(major: str, minor: str | None) -> str:
     return f"{int(major)}.{int(minor)}" if minor else str(int(major))
 
 
+def is_video_entry(name: str, size: int) -> bool:
+    """Whether an archive entry is footage. ".ts" is also TypeScript: only a
+    non-declaration file large enough to be video counts."""
+    lowered = name.lower()
+    ext = os.path.splitext(lowered)[1]
+    if KIND.get(ext) != "video":
+        return False
+    if ext == ".ts":
+        return not lowered.endswith(".d.ts") and size >= MIN_TRANSPORT_STREAM_BYTES
+    return True
+
+
 def inspect_archive(path: str) -> dict:
     """Directory-level look inside a ZIP/CBZ: chapter folders, image count and
     the first ComicInfo.xml / series.json (small, read into memory only)."""
@@ -70,7 +86,7 @@ def inspect_archive(path: str) -> dict:
                         info["images"] += 1
                     elif ext in EXECUTABLE_EXT:
                         info["executables"] += 1
-                    elif KIND.get(ext) == "video":
+                    elif is_video_entry(n, z.getinfo(n).file_size):
                         info["videos"] += 1
                         if len(info["video_entries"]) < MAX_CONTAINED_ENTRIES:
                             info["video_entries"].append(
