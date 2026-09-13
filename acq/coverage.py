@@ -20,6 +20,7 @@ status: the files are reported, never removed.
 """
 from __future__ import annotations
 
+import re
 from collections import Counter, defaultdict
 
 import datetime as _dt
@@ -117,6 +118,41 @@ def episodes(tree: Tree, rels: list[str]) -> dict:
     return {"videos": len(videos), "other_videos": other, "seasons": rows,
             "archives_with_video": len(bundles), "contained_videos": contained,
             "archives_not_inventoried": len(uninventoried)}
+
+
+def units_of(tree: Tree, rels: list[str]) -> list[dict]:
+    """Each file of a work as a unit a reader can open, labelled by what it holds.
+
+    A video is an episode when its name says so; an archive of pages carries
+    the chapter and volume numbers found in it; an archive of videos lists the
+    episodes inside it. Nothing is invented: a file whose name and contents
+    state no number stays unnumbered.
+    """
+    out = []
+    for rel in rels:
+        rec = tree.files[rel]
+        name = rel.rsplit("/", 1)[-1]
+        arch = rec.get("archive") or {}
+        unit = {"file": rel, "kind": rec.get("kind"), "size": rec.get("size", 0)}
+        if rec.get("kind") == "video":
+            season, episode = vault_scan.episode_numbers(name)
+            unit.update(season=season, episode=episode)
+        elif rec.get("kind") == "archive":
+            chapters, vols = vault_scan.file_numbers(rel, rec)
+            majors = sorted({int(c.split(".")[0]) for c in chapters})
+            unit.update(chapters=len(chapters), chapter_text=ranges(majors), volumes=sorted(vols),
+                        pages=arch.get("images") or 0, contained_videos=arch.get("videos") or 0)
+            if arch.get("video_entries"):
+                inside = [vault_scan.entry_episode_numbers(str(e.get("name") or ""))
+                          for e in arch["video_entries"]]
+                unit["contained_episodes"] = [{"season": s, "episode": e} for s, e in inside]
+        out.append(unit)
+
+    def order(u: dict):
+        if u.get("episode") is not None:
+            return (0, u.get("season") if u.get("season") is not None else 999, u["episode"], u["file"])
+        return (1, 0, 0, [int(x) if x.isdigit() else x.lower() for x in re.split(r"(\d+)", u["file"])])
+    return sorted(out, key=order)
 
 
 def compute(cat, tree: Tree) -> dict[str, dict]:
@@ -239,6 +275,7 @@ def compute(cat, tree: Tree) -> dict[str, dict]:
             # Which files make up the work, so a reader can open them. Paths
             # relative to the Vault; the application resolves them itself.
             "media_files": sorted(rels),
+            "units": units_of(tree, rels),
             "unmapped_local_files": len(unmapped_here),
             "last_added_at": iso_ns(max((tree.files[r].get("created_ns") or 0 for r in rels), default=0)),
         }

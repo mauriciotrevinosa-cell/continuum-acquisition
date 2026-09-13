@@ -192,6 +192,7 @@ class TestLocalMaterialIsNeverMissing(Base):
         self.assertEqual(c["episodes"]["seasons"][0]["season"], 1)
         self.assertEqual(c["episodes"]["seasons"][0]["episodes_text"], "1-3")
         self.assertEqual(c["status"], "UNKNOWN", "held, but nobody knows how many episodes exist")
+        self.assertEqual([(u["season"], u["episode"]) for u in c["units"]], [(1, 1), (1, 2), (1, 3)])
         self.assertVaultFilesUntouched()
 
     def test_manga_and_anime_in_one_family_are_both_held(self):
@@ -295,6 +296,9 @@ class TestLocalMaterialIsNeverMissing(Base):
         self.assertEqual(c["episodes"]["seasons"][0]["episodes_text"], "1-3")
         self.assertIn("3 episode file(s) inside 2 archive(s)", c["reason"])
         self.assertEqual(len(c["media_files"]), 2)
+        first = c["units"][0]
+        self.assertEqual(first["contained_videos"], 2)
+        self.assertEqual(first["contained_episodes"], [{"season": 2, "episode": 1}, {"season": 2, "episode": 2}])
         arch = idx["files"]["Alpha Saga/anime/season-2-part-1.zip"]["archive"]
         self.assertEqual(arch["videos"], 2)
         self.assertEqual(arch["video_entries"][0]["name"], "Season 2/Demo Saga S2 - 01.mkv")
