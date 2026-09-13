@@ -141,6 +141,7 @@ def units_of(tree: Tree, rels: list[str]) -> list[dict]:
             chapters, vols = vault_scan.file_numbers(rel, rec)
             majors = sorted({int(c.split(".")[0]) for c in chapters})
             unit.update(chapters=len(chapters), chapter_text=ranges(majors), volumes=sorted(vols),
+                        first_chapter=majors[0] if majors else None,
                         pages=arch.get("images") or 0, contained_videos=arch.get("videos") or 0)
             if arch.get("video_entries"):
                 inside = [vault_scan.entry_episode_numbers(str(e.get("name") or ""))
@@ -151,7 +152,12 @@ def units_of(tree: Tree, rels: list[str]) -> list[dict]:
     def order(u: dict):
         if u.get("episode") is not None:
             return (0, u.get("season") if u.get("season") is not None else 999, u["episode"], u["file"])
-        return (1, 0, 0, [int(x) if x.isdigit() else x.lower() for x in re.split(r"(\d+)", u["file"])])
+        # Reading order: by the first chapter an archive holds (download
+        # parts are not numbered in chapter order), then by volume, then name.
+        first = u.get("first_chapter")
+        volume = (u.get("volumes") or [None])[0]
+        return (1, first if first is not None else 10**9, volume if volume is not None else 10**9,
+                [int(x) if x.isdigit() else x.lower() for x in re.split(r"(\d+)", u["file"])])
     return sorted(out, key=order)
 
 

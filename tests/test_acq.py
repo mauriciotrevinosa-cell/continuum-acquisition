@@ -304,6 +304,15 @@ class TestLocalMaterialIsNeverMissing(Base):
         self.assertEqual(arch["video_entries"][0]["name"], "Season 2/Demo Saga S2 - 01.mkv")
         self.assertVaultFilesUntouched()
 
+    def test_units_are_in_reading_order_not_download_order(self):
+        v = self.vault
+        make_zip(f"{v}/Beta Days/manga/Beta Days/b-part-01.zip", ["0020", "0021"], "Beta Days", salt="late")
+        make_zip(f"{v}/Beta Days/manga/Beta Days/b-part-02.zip", ["0003", "0004"], "Beta Days", salt="early")
+        cat, _idx, _tree, _lay, cov, _adopted = self.state()
+        main = next(w for w in cat.get_family("Beta Days")["works"] if w["work"] == "Beta Days")
+        firsts = [u.get("first_chapter") for u in cov[main["id"]]["units"] if u.get("first_chapter") is not None]
+        self.assertEqual(firsts, sorted(firsts))
+
     def test_every_work_lists_the_files_that_make_it_up(self):
         cat, _idx, _tree, lay, cov, _adopted = self.state()
         fam = cat.get_family("Alpha Saga")
