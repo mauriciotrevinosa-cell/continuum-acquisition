@@ -127,6 +127,7 @@ class Ctx:
         lay = layout.build_layout(self.cat, tree, unofficial_hosts=self.reg.get("unofficial_hosts", []),
                                   scaffold_log=log)
         cov = coverage.compute(self.cat, tree)
+        coverage.reconcile_layout(lay, cov)
         return {"index": idx, "tree": tree, "layout": lay, "coverage": cov, "adopted": changes,
                 "aliases": aliases, "planned": planned}
 

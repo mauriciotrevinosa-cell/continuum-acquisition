@@ -56,7 +56,8 @@ def plan(cat, layout: dict) -> list[dict]:
                     "material_class": w["material_class"], "path": row["local_path"],
                     "expected_path": row["expected_path"]}
             if st == "CONTAINED":
-                actions.append(dict(base, action="EXISTS", reason=f"contained in '{w['contained_in']}'; no folder needed"))
+                inside = w.get("contained_in") or row.get("contained_candidate")
+                actions.append(dict(base, action="EXISTS", reason=f"contained in '{inside}'; no folder needed"))
             elif st in ("FOUND", "MISSING_CONTENT"):
                 actions.append(dict(base, action="EXISTS", reason="folder present" + ("" if st == "FOUND" else " (empty)")))
             elif st == "LEGACY_MAPPING":

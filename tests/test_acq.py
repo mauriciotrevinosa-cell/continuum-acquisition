@@ -587,6 +587,15 @@ class TestScanLayoutCoverage(Base):
         self.assertIn("after that work's final chapter 2", got["reason"])
         self.assertNotEqual(cov[main["id"]]["status"], "MISSING")
 
+        # No empty folder is planned for material its parent already holds.
+        self.assertEqual(coverage.reconcile_layout(_lay, cov), 1)
+        row = next(r for f in _lay["families"] for r in f["works"] if r["work_id"] == encore["id"])
+        self.assertEqual(row["layout_status"], "CONTAINED")
+        plan = scaffold.plan(cat, _lay)
+        action = next(a for a in plan if a["work_id"] == encore["id"])
+        self.assertEqual(action["action"], "EXISTS")
+        self.assertIn("contained in 'Beta Days'", action["reason"])
+
         # An ongoing parent's later chapters are its own, not a sequel's.
         main["remote"] = {"latest_chapter": 2, "completed": False}
         self.assertEqual(coverage.compute(cat, _tree)[encore["id"]]["status"], "MISSING")

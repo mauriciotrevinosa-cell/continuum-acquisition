@@ -337,3 +337,28 @@ def _continuations_inside_parents(cat, out: dict[str, dict], chapters_by_work: d
                                      "chapters": beyond, "chapters_text": text, "files": files},
             )
             break
+
+
+def reconcile_layout(layout: dict, cov: dict[str, dict]) -> int:
+    """No folder is planned for a continuation whose chapters its parent's files already hold.
+
+    The layout is built before coverage knows what is contained; a MISSING_FOLDER
+    row for a CONTAINED_CANDIDATE work becomes CONTAINED (pointing at the parent),
+    so the structure audit and the scaffold plan do not propose an empty folder.
+    Returns how many rows changed.
+    """
+    changed = 0
+    for fam in layout.get("families") or []:
+        for row in fam.get("works") or []:
+            c = cov.get(row.get("work_id")) or {}
+            candidate = c.get("contained_candidate")
+            if candidate and row.get("layout_status") == "MISSING_FOLDER":
+                row["layout_status"] = "CONTAINED"
+                row["contained_candidate"] = candidate["work"]
+                changed += 1
+    if changed and isinstance(layout.get("summary"), dict):
+        summary = layout["summary"]
+        summary["missing_folder"] = summary.get("missing_folder", 0) - changed
+        summary["contained"] = summary.get("contained", 0) + changed
+    return changed
+
