@@ -15,6 +15,13 @@
 MISSING is a claim of absence, so it is the status that must be earned: it is
 only reported when nothing local could be the work.
 
+A continuation (a sequel arc) is often released inside its parent work's
+download parts, numbered on after the parent's final chapter (200.1, 200.2...)
+rather than filed in a folder of its own. When a continuation has no files but
+its completed parent holds chapters beyond that parent's final chapter, those
+chapters are reported as the continuation's probable content: status UNKNOWN
+(present, count unverified), flag CONTAINED_CANDIDATE - never MISSING.
+
 DUPLICATE_CANDIDATE is a flag (the same chapter in several archives), not a
 status: the files are reported, never removed.
 """
@@ -30,6 +37,10 @@ from .taxonomy import VIDEO_CLASSES
 from .layout import Tree, attribute
 
 STATUSES = ("COMPLETE", "PARTIAL", "MISSING", "NEEDS_MAPPING", "UNKNOWN", "BLOCKED")
+#: Relations whose content may ship inside the parent work's own releases.
+CONTINUATIONS = frozenset({"SEQUEL", "CONTINUATION"})
+#: Relations that ARE the parent a continuation follows.
+PARENTS = frozenset({"MAIN_WORK", "PREQUEL"})
 
 
 def ranges(nums) -> str:
@@ -168,6 +179,7 @@ def compute(cat, tree: Tree) -> dict[str, dict]:
     for rel, (_fam, w) in owner.items():
         by_work[w["id"]].append(rel)
     out: dict[str, dict] = {}
+    chapters_by_work: dict[str, tuple[set[str], dict[str, list[str]]]] = {}
     for fam, w in cat.iter_works():
         rels = [r for r in by_work.get(w["id"], []) if is_media(tree, r)]
         # the classes this work could be filed under: what it is, and where it points
@@ -266,6 +278,7 @@ def compute(cat, tree: Tree) -> dict[str, dict]:
             flags.append("COUNT_FROM_FILE_METADATA")
         else:
             status, reason = "UNKNOWN", "files present; no remote chapter/volume data to compare"
+        chapters_by_work[w["id"]] = (chapters, ch_arch)
         out[w["id"]] = {
             "family": fam["family"], "work": w["work"], "status": status, "reason": reason, "flags": flags,
             "local_files": len(rels), "local_bytes": sum(tree.files[r].get("size", 0) for r in rels),
@@ -285,4 +298,42 @@ def compute(cat, tree: Tree) -> dict[str, dict]:
             "unmapped_local_files": len(unmapped_here),
             "last_added_at": iso_ns(max((tree.files[r].get("created_ns") or 0 for r in rels), default=0)),
         }
+    _continuations_inside_parents(cat, out, chapters_by_work)
     return out
+
+
+def _continuations_inside_parents(cat, out: dict[str, dict], chapters_by_work: dict) -> None:
+    """A continuation with no files of its own, whose chapters sit after its parent's finale."""
+    for fam, w in cat.iter_works():
+        row = out.get(w["id"])
+        if row is None or row["status"] != "MISSING":
+            continue
+        if str(w.get("relation") or "").upper() not in CONTINUATIONS:
+            continue
+        cls = (w.get("material_class") or "").lower()
+        for parent in fam.get("works") or []:
+            if parent is w or str(parent.get("relation") or "").upper() not in PARENTS:
+                continue
+            if (parent.get("material_class") or "").lower() != cls or parent.get("id") not in chapters_by_work:
+                continue
+            remote = parent.get("remote") or {}
+            final = remote.get("latest_chapter")
+            if not remote.get("completed") or not isinstance(final, (int, float)):
+                continue
+            chapters, ch_arch = chapters_by_work[parent["id"]]
+            beyond = sorted((c for c in chapters if _ck(c) > (int(final),)), key=_ck)
+            if not beyond:
+                continue
+            files = sorted({r for c in beyond for r in ch_arch.get(c, [])})
+            text = beyond[0] if len(beyond) == 1 else f"{beyond[0]}-{beyond[-1]}"
+            row.update(
+                status="UNKNOWN",
+                reason=(f"probably held inside the files of '{parent['work']}': {len(beyond)} "
+                        f"chapter(s) {text} come after that work's final chapter {int(final)}"),
+                flags=[*row["flags"], "CONTAINED_CANDIDATE"],
+                local_chapters=len(beyond),
+                media="pages",
+                contained_candidate={"work_id": parent["id"], "work": parent["work"],
+                                     "chapters": beyond, "chapters_text": text, "files": files},
+            )
+            break

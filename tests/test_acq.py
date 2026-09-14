@@ -563,6 +563,36 @@ class TestScanLayoutCoverage(Base):
         self.assertEqual(coverage.compute(cat, tree)[fam["works"][1]["id"]]["status"], "COMPLETE")
 
 
+    def test_a_sequel_released_inside_its_parents_parts_is_not_missing(self):
+        """Regression: a sequel arc numbered on after the parent's finale (200.1...).
+
+        Download parts often carry a continuation as decimal chapters after the
+        parent work's last chapter, with no folder of its own. That is present
+        material, not an absence.
+        """
+        make_zip(f"{self.vault}/Beta Days/manga/Beta Days/b2.zip", ["0002.1", "0002.2", "0003"],
+                 "Beta Days")
+        cat = Catalog(self.cat_path)
+        fam = cat.get_family("Beta Days")
+        main = fam["works"][0]
+        main["relation"] = "MAIN_WORK"
+        main["remote"] = {"latest_chapter": 2, "completed": True}
+        encore = planned_work(cat, "Beta Days", "Beta Days Encore", "manga", relation="SEQUEL")
+        cat, _idx, _tree, _lay, cov, _ = self.state(cat)
+        got = cov[encore["id"]]
+        self.assertEqual(got["status"], "UNKNOWN", "held inside the parent, count unverified")
+        self.assertIn("CONTAINED_CANDIDATE", got["flags"])
+        self.assertEqual(got["contained_candidate"]["chapters"], ["2.1", "2.2", "3"])
+        self.assertEqual(got["contained_candidate"]["files"], ["Beta Days/manga/Beta Days/b2.zip"])
+        self.assertIn("after that work's final chapter 2", got["reason"])
+        self.assertNotEqual(cov[main["id"]]["status"], "MISSING")
+
+        # An ongoing parent's later chapters are its own, not a sequel's.
+        main["remote"] = {"latest_chapter": 2, "completed": False}
+        self.assertEqual(coverage.compute(cat, _tree)[encore["id"]]["status"], "MISSING")
+        self.assertVaultFilesUntouched()
+
+
 # ---------------------------------------------------------------------------
 def mu_series(sid, title, typ="Manga", authors=("Kenji Tanaka",), original="Shueisha", english=None,
               related=(), aliases=(), latest=None, status="3 Volumes (Ongoing)"):
